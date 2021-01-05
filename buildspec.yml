@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+
+  pre_build:
+    commands:
+      - echo Build and push container for Multi-Model-Endpoint
+      - multi-model-endpoint/container/build_and_push.sh 
+      - echo Create Sagemaker test Multi-Model-Endpoint
+
+  build:
+    commands:
+      - echo Train models
+      - echo Upload models to S3 bucket to be used by test Multi-Model-Endpoint
+
+  post_build:
+    commands:
+      - echo Create SageMaker Monitoring Baselines
+      - echo Create SageMaker Monitoring Schedule for Multi-Model-Endpoint
+      - echo Create Sagemaker final Multi-Model-Endpoint
