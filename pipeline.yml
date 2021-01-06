@@ -48,27 +48,6 @@ Parameters:
     Description: Name of the branch the code is located
 
 Resources:
-  KMSKey:
-    Type: 'AWS::KMS::Key'
-    Properties:
-      Description: !Sub 'KMS Key for mlops pipeline'
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: 2012-10-17
-        Id: !Ref 'AWS::StackName'
-        Statement:
-          - Sid: Allows admin of the key
-            Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action:
-              - 'kms:*'
-            Resource: '*'
-  KMSAlias:
-    Type: 'AWS::KMS::Alias'
-    Properties:
-      AliasName: !Sub 'alias/mlops'
-      TargetKeyId: !Ref KMSKey
   ArtifactBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
@@ -80,14 +59,21 @@ Resources:
     Type: 'AWS::CodeBuild::Project'
     Properties:
       Name: !Sub '${ModelName}-build-${Stage}'
-      Description: Build and push the multi-model image
+      Description: Build and push the multi-model image and train models
       ServiceRole: !GetAtt SageMakerRole.Arn
       Artifacts:
         Type: CODEPIPELINE
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        Image: 'aws/codebuild/standard:4.0'
+        EnvironmentVariables:
+        - Name: STAGE
+          Type: PLAINTEXT
+          Value: !Sub '${Stage}'
+        - Name: MODEL_NAME
+          Type: PLAINTEXT
+          Value: !Sub '${ModelName}'
       Source:
         Type: CODEPIPELINE
         BuildSpec: ./buildspec.yml
@@ -99,9 +85,6 @@ Resources:
       RoleArn: !GetAtt PipelineRole.Arn
       ArtifactStore:
         Type: S3
-        EncryptionKey:
-          Id: !Ref KMSKey
-          Type: KMS
         Location:
           Ref: ArtifactBucket
       Stages:
@@ -114,16 +97,16 @@ Resources:
                 Version: '1'
                 Provider: GitHub
               OutputArtifacts:
-                - Name: ModelSourceOutput
+                - Name: SourceOutput
               Configuration:
                 Owner: !Ref GitHubUser
                 Repo: !Ref GitHubRepo
                 Branch: !Ref GitHubBranch
         - Name: Build
           Actions:
-            - Name: PackageModels
+            - Name: BuildImage
               InputArtifacts:
-                - Name: ModelSourceOutput
+                - Name: SourceOutput
               OutputArtifacts:
                 - Name: BuildOutput
               ActionTypeId:
@@ -133,11 +116,11 @@ Resources:
                 Provider: CodeBuild
               Configuration:
                 ProjectName: !Ref BuildProject
-                PrimarySource: ModelSourceOutput
+                PrimarySource: SourceOutput
                 EnvironmentVariables: !Sub >-
-                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${stage}","type":"PLAINTEXT"}]
+                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
               RunOrder: 1
-        - Name: DeployDev
+        - Name: Deploy
           Actions:
             - Name: DeployModelDev
               InputArtifacts:
@@ -150,9 +133,9 @@ Resources:
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt MLOpsRole.Arn
-                StackName: !Sub '${ModelName}-${Stage}-deploy-test'
-                TemplateConfiguration: 'BuildOutput::deploy-model-dev.json'
-                TemplatePath: 'BuildOutput::deploy-model-dev.yml'
+                StackName: !Sub '${ModelName}-${Stage}'
+                TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
+                TemplatePath: 'BuildOutput::deploy-endpoint.yml'
               RunOrder: 1
   S3Policy:
     Type: 'AWS::IAM::Policy'
@@ -175,16 +158,6 @@ Resources:
               - !Sub 'arn:aws:s3:::${ArtifactBucket}'
               - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}/*'
               - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}'
-          - Sid: AllowKms
-            Effect: Allow
-            Action:
-              - 'kms:DescribeKey'
-              - 'kms:Decrypt'
-              - 'kms:Encrypt'
-              - 'kms:GenerateDataKey*'
-              - 'kms:ReEncrypt*'
-            Resource:
-              - !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${KMSKey}'
           - Sid: AllowLogs
             Effect: Allow
             Action:

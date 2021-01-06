@@ -32,3 +32,5 @@ aws ecr get-login-password --region ${region}|docker login --username AWS --pass
 docker build -q -t ${algorithm_name} .
 docker tag ${algorithm_name} ${fullname}:${STAGE}
 docker push ${fullname}
+
+printf '[{"name":"%s","imageURI":"%s"}]' "${algorithm_name}" "${fullname}:${STAGE}" > imageDetail.json
