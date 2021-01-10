@@ -31,9 +31,9 @@ Parameters:
     Type: String
     Description: Name of the model
     MinLength: 1
-    MaxLength: 15
+    MaxLength: 30
     AllowedPattern: '^[a-z0-9](-*[a-z0-9])*'
-    ConstraintDescription: Must be lowercase or numbers with a length of 1-15 characters.
+    ConstraintDescription: Must be lowercase or numbers with a length of 1-25 characters.
   GitHubUser:
     Default: DetektivKollektiv
     Description: Your GitHub username
@@ -118,7 +118,7 @@ Resources:
                 ProjectName: !Ref BuildProject
                 PrimarySource: SourceOutput
                 EnvironmentVariables: !Sub >-
-                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
+                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
               RunOrder: 1
         - Name: Deploy
           Actions:

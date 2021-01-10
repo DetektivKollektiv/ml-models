@@ -11,6 +11,8 @@ phases:
       - cd $CODEBUILD_SRC_DIR
       - echo Build and push container for Multi-Model-Endpoint
       - multi-model-endpoint/container/build_and_push.sh 
+      - echo Build and push container for training
+      - training/container/build_and_push.sh 
 
   build:
     commands:
