@@ -1,0 +1,35 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+
+  pre_build:
+    commands:
+      - echo Pre-build started on `date`
+      - cd $CODEBUILD_SRC_DIR
+      - echo Build and push container for Multi-Model-Endpoint
+      - multi-model-endpoint/container/build_and_push.sh 
+      - echo Build and push container for training
+      - training/container/build_and_push.sh 
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Run the workflow script
+      - python multi-model-endpoint/run.py --model-name=$MODEL_NAME --stage=$STAGE --role=$ROLE_ARN --output-dir=assets --ecr-dir=multi-model-endpoint/container
+      - echo TODO Train models
+      - echo TODO Upload models to S3 bucket to be used by test Multi-Model-Endpoint
+
+  post_build:
+    commands:
+      - echo TODO Create SageMaker Monitoring Baselines
+      - echo TODO Create SageMaker Monitoring Schedule for Multi-Model-Endpoint
+      - echo TODO Create Sagemaker final Multi-Model-Endpoint
+
+artifacts:
+  files:
+    - assets/*.json
+    - assets/*.yml
+  discard-paths: yes

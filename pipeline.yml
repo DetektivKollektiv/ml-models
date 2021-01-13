@@ -1,0 +1,441 @@
+Description: Multi model deployment
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Required Parameters
+        Parameters:
+          - ModelName
+      - Label:
+          default: Optional GitHub Parameters
+        Parameters:
+          - GitHubRepo
+          - GitHubBranch
+          - GitHubUser
+    ParameterLabels:
+      ModelName:
+        default: detektivkollektiv-ml-models
+      GitHubRepo:
+        default: ml-models
+      GitHubBranch:
+        default: develop
+      GitHubUser:
+        default: DetektivKollektiv
+Parameters:
+  Stage:
+    Default: dev
+    Description: stage (corresponding to branch)
+    Type: String
+  ModelName:
+    Default: detektivkollektiv-ml-models
+    Type: String
+    Description: Name of the model
+    MinLength: 1
+    MaxLength: 30
+    AllowedPattern: '^[a-z0-9](-*[a-z0-9])*'
+    ConstraintDescription: Must be lowercase or numbers with a length of 1-25 characters.
+  GitHubUser:
+    Default: DetektivKollektiv
+    Description: Your GitHub username
+    Type: String
+  GitHubRepo:
+    Default: ml-models
+    Type: String
+    Description: Name of the GitHub repository
+  GitHubBranch:
+    Default: develop
+    Type: String
+    Description: Name of the branch the code is located
+
+Resources:
+  ArtifactBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${ModelName}-artifacts-${Stage}'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+  BuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: !Sub '${ModelName}-build-${Stage}'
+      Description: Build and push the multi-model image and train models
+      ServiceRole: !GetAtt SageMakerRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/standard:4.0'
+        EnvironmentVariables:
+        - Name: STAGE
+          Type: PLAINTEXT
+          Value: !Sub '${Stage}'
+        - Name: MODEL_NAME
+          Type: PLAINTEXT
+          Value: !Sub '${ModelName}'
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ./buildspec.yml
+      TimeoutInMinutes: 30
+  DeployPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: !Sub '${ModelName}-${Stage}'
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location:
+          Ref: ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: '1'
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: !Ref GitHubUser
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+        - Name: Build
+          Actions:
+            - Name: BuildImage
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref BuildProject
+                PrimarySource: SourceOutput
+                EnvironmentVariables: !Sub >-
+                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployModelDev
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt MLOpsRole.Arn
+                StackName: !Sub '${ModelName}-${Stage}'
+                TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
+                TemplatePath: 'BuildOutput::deploy-endpoint.yml'
+              RunOrder: 1
+  S3Policy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub '${ModelName}-s3-policy-${Stage}'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3Resources
+            Effect: Allow
+            Action:
+              - 's3:CreateBucket'
+              - 's3:GetBucket*'
+              - 's3:GetObject*'
+              - 's3:ListBucket'
+              - 's3:PutObject'
+            Resource:
+              - 'arn:aws:s3:::nyc-tlc/*'
+              - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'
+              - !Sub 'arn:aws:s3:::${ArtifactBucket}'
+              - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}/*'
+              - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}'
+          - Sid: AllowLogs
+            Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: '*'
+      Roles:
+        - !Ref SageMakerRole
+        - !Ref PipelineRole
+        - !Ref MLOpsRole
+  CloudWatchEventRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-cwe-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: mlops-cwe-pipeline-execution
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'codepipeline:StartPipelineExecution'
+                Resource: !Sub >-
+                  arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${DeployPipeline}
+  SageMakerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-sagemaker-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchSyntheticsFullAccess'
+      Policies:
+        - PolicyName: mlops-sagemaker-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowCloudFormation
+                Effect: Allow
+                Action:
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DescribeStackEvents'
+                Resource:
+                  - !Sub >-
+                    arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ModelName}-${Stage}*
+              - Sid: SageMakerTesting
+                Effect: Allow
+                Action:
+                  - 'sagemaker:CreateExperiment'
+                  - 'sagemaker:CreateTrial'
+                  - 'sagemaker:DescribeEndpoint'
+                  - 'sagemaker:DescribeEndpointConfig'
+                  - 'sagemaker:DescribeMonitoringSchedule'
+                  - 'sagemaker:DescribeProcessingJob'
+                  - 'sagemaker:InvokeEndpoint'
+                  - 'sagemaker:ListMonitoringExecutions'
+                  - 'sagemaker:Search'
+                Resource: '*'
+              - Sid: AllowCodePipeline
+                Effect: Allow
+                Action:
+                  - 'codepipeline:GetPipeline'
+                  - 'codepipeline:GetPipelineState'
+                  - 'codepipeline:GetPipelineExecution'
+                  - 'codepipeline:PutApprovalResult'
+                  - 'codepipeline:PutJobFailureResult'
+                  - 'codepipeline:PutJobSuccessResult'
+                Resource: '*'
+              - Sid: AllowCloudWatch
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:PutMetricData'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:DeleteDashboards'
+                  - 'iam:GetRole'
+                Resource: '*'
+              - Sid: AllowPassRoleLambda
+                Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': lambda.amazonaws.com
+              - Sid: ListImagesInRepository
+                Effect: Allow
+                Action:
+                  - 'ecr:ListImages'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}
+              - Sid: GetAuthorizationToken
+                Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                Resource: '*'
+              - Sid: ManageRepositoryContents
+                Effect: Allow
+                Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:DescribeRepositories'
+                  - 'ecr:ListImages'
+                  - 'ecr:DescribeImages'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:InitiateLayerUpload'
+                  - 'ecr:UploadLayerPart'
+                  - 'ecr:CompleteLayerUpload'
+                  - 'ecr:PutImage'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}
+  PipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-pipeline-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: mlops-pipeline
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudFormation
+                Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+              - Sid: CodeBuild
+                Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Sid: AllowPassRoleCloudFormation
+                Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: !GetAtt MLOpsRole.Arn
+  MLOpsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-deploy-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: mlops-deploy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudFormation
+                Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                  - 'iam:AttachRolePolicy'
+                  - 'iam:CreateRole'
+                  - 'iam:CreatePolicy'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:DeleteRole'
+                  - 'iam:DetachRolePolicy'
+                  - 'iam:PutRolePolicy'
+                  - 'iam:PassRole'
+                  - 'iam:DeleteRolePolicy'
+                  - 'iam:CreateServiceLinkedRole'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+              - Sid: SageMakerDeployment
+                Effect: Allow
+                Action:
+                  - 'sagemaker:CreateEndpoint'
+                  - 'sagemaker:CreateEndpointConfig'
+                  - 'sagemaker:CreateModel'
+                  - 'sagemaker:DeleteEndpoint'
+                  - 'sagemaker:DeleteEndpointConfig'
+                  - 'sagemaker:DeleteModel'
+                  - 'sagemaker:DescribeEndpoint'
+                  - 'sagemaker:DescribeEndpointConfig'
+                  - 'sagemaker:DescribeModel'
+                  - 'sagemaker:UpdateEndpointWeightsAndCapacities'
+                  - 'kms:CreateGrant'
+                Resource: '*'
+              - Sid: ApiDeployment
+                Effect: Allow
+                Action:
+                  - 'apigateway:*'
+                  - 'application-autoscaling:DeregisterScalableTarget'
+                  - 'application-autoscaling:DeleteScalingPolicy'
+                  - 'application-autoscaling:DescribeScalingPolicies'
+                  - 'application-autoscaling:PutScalingPolicy'
+                  - 'application-autoscaling:DescribeScalingPolicies'
+                  - 'application-autoscaling:RegisterScalableTarget'
+                  - 'application-autoscaling:DescribeScalableTargets'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'codedeploy:*'
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateAlias'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteAlias'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:GetFunction'
+                  - 'lambda:GetAlias'
+                  - 'lambda:ListTags'
+                  - 'lambda:ListVersionsByFunction'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:RemovePermission'
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:UpdateFunctionConfiguration'
+                  - 'sns:CreateTopic'
+                  - 'sns:DeleteTopic'
+                  - 'sns:GetTopicAttributes'
+                  - 'sns:ListTopics'
+                Resource: '*'
+              - Sid: AllowPassRoleSageMaker
+                Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': sagemaker.amazonaws.com
