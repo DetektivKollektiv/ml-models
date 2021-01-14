@@ -1,5 +1,3 @@
-%%sh
-
 # The name of our algorithm
 algorithm_name=$MODEL_NAME
 
