@@ -12,6 +12,7 @@ Metadata:
           - GitHubRepo
           - GitHubBranch
           - GitHubUser
+          - GitHubSecret
     ParameterLabels:
       ModelName:
         default: detektivkollektiv-ml-models
@@ -21,6 +22,8 @@ Metadata:
         default: develop
       GitHubUser:
         default: DetektivKollektiv
+      GitHubSecret:
+        default: GitHub/ML-models
 Parameters:
   Stage:
     Default: dev
@@ -46,6 +49,10 @@ Parameters:
     Default: develop
     Type: String
     Description: Name of the branch the code is located
+  GitHubSecret:
+    Default: GitHub/ML-models
+    Type: String
+    Description: Name of secret in the secretsmanager
 
 Resources:
   ArtifactBucket:
@@ -102,6 +109,7 @@ Resources:
                 Owner: !Ref GitHubUser
                 Repo: !Ref GitHubRepo
                 Branch: !Ref GitHubBranch
+                OAuthToken: !Sub '{{resolve:secretsmanager:${GitHubSecret}:SecretString:token}}'
         - Name: Build
           Actions:
             - Name: BuildImage
