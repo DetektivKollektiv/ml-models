@@ -299,13 +299,17 @@ Resources:
                   - 'ecr:BatchCheckLayerAvailability'
                   - 'ecr:GetDownloadUrlForLayer'
                   - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:TagResource'
+                  - 'ecr:UntagResource'
                   - 'ecr:DescribeRepositories'
                   - 'ecr:ListImages'
+                  - 'ecr:ListTagsForResource'
                   - 'ecr:DescribeImages'
                   - 'ecr:BatchGetImage'
                   - 'ecr:InitiateLayerUpload'
                   - 'ecr:UploadLayerPart'
                   - 'ecr:CompleteLayerUpload'
+                  - 'ecr:CreateRepository'
                   - 'ecr:PutImage'
                 Resource: 
                   - !Sub >-
