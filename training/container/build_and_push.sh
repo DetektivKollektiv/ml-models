@@ -1,5 +1,5 @@
 # The name of our algorithm
-algorithm_name="${MODEL_NAME}_training"
+algorithm_name="${MODEL_NAME}-train"
 
 # cd container
 
