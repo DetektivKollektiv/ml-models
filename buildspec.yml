@@ -4,15 +4,19 @@ phases:
   install:
     runtime-versions:
       python: 3.8
+      docker: 19
 
   pre_build:
     commands:
       - echo Pre-build started on `date`
       - cd $CODEBUILD_SRC_DIR
       - echo Build and push container for Multi-Model-Endpoint
-      - multi-model-endpoint/container/build_and_push.sh 
+      - cd multi-model-endpoint/container
+      - ./build_and_push.sh 
+      - cd $CODEBUILD_SRC_DIR
       - echo Build and push container for training
-      - training/container/build_and_push.sh 
+      - cd training/container
+      - ./build_and_push.sh 
 
   build:
     commands:
