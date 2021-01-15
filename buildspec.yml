@@ -34,6 +34,7 @@ phases:
       - echo TODO Create SageMaker Monitoring Baselines
       - echo TODO Create SageMaker Monitoring Schedule for Multi-Model-Endpoint
       - echo TODO Create Sagemaker final Multi-Model-Endpoint
+      - cd $CODEBUILD_SRC_DIR
 
 artifacts:
   files:
