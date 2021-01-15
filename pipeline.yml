@@ -314,7 +314,7 @@ Resources:
                   - 'ecr:PutImage'
                 Resource: 
                   - !Sub >-
-                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
   PipelineRole:
     Type: 'AWS::IAM::Role'
     Properties:

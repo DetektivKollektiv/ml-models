@@ -27,6 +27,7 @@ def main(
     # Load the image uri and input data config
     with open(os.path.join(ecr_dir, "imageDetail.json"), "r") as f:
         image_json = json.load(f)
+        print(image_json)
         image_uri = image_json["ImageURI"]
     print("image uri: {}".format(image_uri))
 
