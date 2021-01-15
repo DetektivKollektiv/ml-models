@@ -28,7 +28,7 @@ def main(
     with open(os.path.join(ecr_dir, "imageDetail.json"), "r") as f:
         image_json = json.load(f)
         print(image_json)
-        image_uri = image_json["ImageURI"]
+        image_uri = image_json["imageURI"]
     print("image uri: {}".format(image_uri))
 
     # Create output directory
