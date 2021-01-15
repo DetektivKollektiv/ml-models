@@ -2,11 +2,6 @@ FROM ubuntu:20.04
 
 LABEL maintainer="DetektivKollektiv"
 
-# Defining some variables used at build time to install Python3
-ARG PYTHON=python3
-ARG PYTHON_PIP=python3-pip
-ARG PIP=pip3
-
 # Install some handful libraries like curl, wget, git, build-essential, zlib
 RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common && \
     add-apt-repository ppa:deadsnakes/ppa -y && \
@@ -21,7 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends software-proper
         openssh-server \
         vim \
         zlib1g-dev && \
-    rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -O https://bootstrap.pypa.io/get-pip.py \
+    && python3 get-pip.py
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 RUN update-alternatives --install /usr/local/bin/pip pip /usr/local/bin/pip3 1
@@ -30,8 +27,7 @@ WORKDIR /
 
 # Install MMS, and SageMaker Inference Toolkit to set up MMS
 RUN pip3 --no-cache-dir install \
-                                multi-model-server \
-                                sagemaker-inference \
+                                sagemaker-training \
                                 gensim \
                                 nltk \
                                 spacy \
@@ -52,6 +48,3 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONIOENCODING=UTF-8 \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
-
-RUN ${PIP} install --no-cache --upgrade \
-    sagemaker-training
