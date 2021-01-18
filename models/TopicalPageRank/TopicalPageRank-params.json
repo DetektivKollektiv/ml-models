@@ -1,0 +1,7 @@
+{
+    "grammar": "NP: {<ADJ>*<NOUN|PROPN>}", 
+    "language": "de", 
+    "normalization": "None", 
+    "window": 10, 
+    "max_count": 10
+}
