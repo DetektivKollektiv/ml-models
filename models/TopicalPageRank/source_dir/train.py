@@ -5,47 +5,42 @@ import time
 import os
 import argparse
 
-from utils import save_model_artifacts, print_files_in_path
 
-def train(hp1, hp2, hp3, train_channel, validation_channel):
+import json
+import pke 
+import pandas as pd
 
-    print('\nList of files in train channel: ')
-    print_files_in_path(os.environ['SM_CHANNEL_TRAIN'])
-    
-    print('\nList of files in validation channel: ')
-    print_files_in_path(os.environ['SM_CHANNEL_VALIDATION'])
-    
-    # Dummy net.
-    net = None
-        
-    # Run training loop.
-    epochs = 5
-    for x in range(epochs):
-        print("\nRunning epoch {0}...".format(x))
 
-        time.sleep(30)
+def train(params_json, train_channel):
 
-        print("Completed epoch {0}.".format(x))
-        
-    # At the end of the training loop, we have to save model artifacts.
+    # read mode parameters from json string
+    model_params = json.load(params_json)
+    # split df in single news
+    data_news = pd.read_csv(os.path.join(train_channel, model_params['train_df']))
+    print(data_news.head())
+
+    for index, row in data_news.iterrows():
+        file = open(train_channel+'/'+str(index)+".txt","w") 
+        file.write(row["claim_text"]) 
+        file.close() 
+
+    # location for storing the trained model.
     model_dir = os.environ['SM_MODEL_DIR']
-    save_model_artifacts(model_dir + '/', net)
+
+    pke.utils.compute_lda_model(train_channel, model_dir+'/'+model_params['model_name']+'-model', n_topics=model_params['n_topics'], extension='txt', language=model_params['language'], normalization=model_params['normalization'])
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     
-    # sagemaker-containers passes hyperparameters as arguments
-    parser.add_argument('--hp1', type=str)
-    parser.add_argument('--hp2', type=int, default=50)
-    parser.add_argument('--hp3', type=float, default=0.1)
-    
+    # hyperparameters and other parameters are passed in a json-string
+    parser.add_argument('--params_json', type=str)
+
     # This is a way to pass additional arguments when running as a script
     # and use sagemaker-containers defaults to set their values when not specified.
     parser.add_argument('--train', type=str, default=os.environ['SM_CHANNEL_TRAIN'])
-    parser.add_argument('--validation', type=str, default=os.environ['SM_CHANNEL_VALIDATION'])
 
     args = parser.parse_args()
     
-    train(args.hp1, args.hp2, args.hp3, args.train, args.validation)
+    train(args.params_json, args.train)
  

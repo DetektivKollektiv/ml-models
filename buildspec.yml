@@ -33,7 +33,7 @@ phases:
       - echo Build started on `date`
       - cd $CODEBUILD_SRC_DIR
       - echo Run the workflow script
-      - python models/run.py --pipeline-name=$PIPELINE_NAME --model-name=$MODEL_NAME --stage=$STAGE --role=$ROLE_ARN --data-bucket=$DATA_BUCKET --data-dir=$CODEBUILD_SRC_DIR_DataSourceOutput --factchecks-prefix=$FACTCHECKS_PREFIX --output-dir=assets --endpoint-dir=multi-model-endpoint --training-dir=training
+      - python models/run.py --pipeline-name=$PIPELINE_NAME --model-name=$MODEL_NAME --stage=$STAGE --role=$ROLE_ARN --data-bucket=$DATA_BUCKET --data-dir=$CODEBUILD_SRC_DIR_DataSourceOutput --output-dir=assets --endpoint-dir=multi-model-endpoint --training-dir=training
       - echo TODO Train models
       - echo TODO Upload models to S3 bucket to be used by test Multi-Model-Endpoint
 

@@ -45,7 +45,7 @@ class ModelHandler(object):
         """
         params_file_path = os.path.join(model_dir, "{}-{}".format(checkpoint_prefix, "params.json"))
         if not os.path.isfile(params_file_path):
-            raise RuntimeError("Missing {} file.".format(shapes_file_path))
+            raise RuntimeError("Missing {} file.".format(params_file_path))
 
         with open(params_file_path) as f:
             self.model_params = json.load(f)
