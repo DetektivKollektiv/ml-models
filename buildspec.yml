@@ -9,6 +9,7 @@ phases:
       - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://127.0.0.1:2375 --storage-driver=overlay2 &
       - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
       - echo "Installing requirements"
+      - pip install --upgrade pip
       - pip install -r $CODEBUILD_SRC_DIR/requirements.txt
       - pip install crhelper -t $CODEBUILD_SRC_DIR/custom_resource # Install custom resource helper into the CFN directory
 
