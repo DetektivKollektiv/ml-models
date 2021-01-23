@@ -45,12 +45,6 @@ def get_training_params(
         }
     }
     
-def get_training_image(region=None):
-    region = region or boto3.Session().region_name
-    return sagemaker.image_uris.retrieve(
-        region=region, framework="xgboost", version="1.0-1"
-    )
-
 def get_endpoint_params(model_name, role, image_uri, stage):
     return {
         "Parameters": {
@@ -127,6 +121,7 @@ def main(
         with open(os.path.join(model_dir, "inputData.json"), "r") as f:
             input_data = json.load(f)
             training_uri = input_data["Training"]["Uri"]
+            training_uri = training_uri.replace("STAGE", stage)
             training_file = input_data["Training"]["file_name"]
             print("Train model {} with data {} in {}".format(model, training_uri, training_file))
 
@@ -153,6 +148,7 @@ def main(
     # Write the training request
     with open(os.path.join(output_dir, "training-jobs.json"), "w") as f:
         json.dump(training_jobs, f)
+        print("Training requests:\n {}".format(json.dumps(training_jobs)))
 
     # Write the dev & prod params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
