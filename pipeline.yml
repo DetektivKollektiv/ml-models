@@ -75,17 +75,73 @@ Resources:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: 'aws/codebuild/standard:4.0'
         PrivilegedMode: true
-        EnvironmentVariables:
-        - Name: STAGE
-          Type: PLAINTEXT
-          Value: !Sub '${Stage}'
-        - Name: MODEL_NAME
-          Type: PLAINTEXT
-          Value: !Sub '${ModelName}'
       Source:
         Type: CODEPIPELINE
         BuildSpec: ./buildspec.yml
       TimeoutInMinutes: 30
+  CreateExperiment:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ModelName}-create-experiment-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt SageMakerRole.Arn
+      Runtime: python3.8
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import io
+          import zipfile
+          import json
+
+          s3 = boto3.client('s3')
+          sm = boto3.client('sagemaker')
+          codepipeline = boto3.client('codepipeline')
+
+          def lambda_handler(event, context):
+              print('event', json.dumps(event))
+              jobId = event["CodePipeline.job"]["id"]
+              experiment = None
+              trial = None
+
+              try:
+                  for inputArtifacts in event["CodePipeline.job"]["data"]["inputArtifacts"]:
+                      if inputArtifacts['name'] == 'BuildOutput':
+                          s3Location = inputArtifacts['location']['s3Location']
+                          zip_bytes = s3.get_object(Bucket=s3Location['bucketName'], Key=s3Location['objectKey'])['Body'].read()
+                          with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as z:
+                            trials = json.loads(z.read('trials.json').decode('utf-8'))
+
+                  if trials is None:
+                    raise(Exception("Experiment and Trail config not found"))
+
+                  for trial in trials:
+                    try:
+                        response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
+                        print('created exp', response)
+                    except Exception as e:
+                        print('error creating exp', e)
+                    try:
+                        response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
+                        print('created trial', response)
+                    except Exception as e:
+                        print('error creating trial', e)
+
+                  # and update codepipeline
+                  codepipeline.put_job_success_result(jobId=jobId)
+              except Exception as e:
+                  print(e)
+                  resp = codepipeline.put_job_failure_result(
+                      jobId=jobId,
+                      failureDetails={
+                          'type': 'ConfigurationError',
+                          'message': str(e),
+                          'externalExecutionId': context.aws_request_id
+                      }
+                  )
+              return 'Done'
+      Description: Function that creates an experiment and trial
   DeployPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
@@ -127,7 +183,7 @@ Resources:
                 ProjectName: !Ref BuildProject
                 PrimarySource: SourceOutput
                 EnvironmentVariables: !Sub >-
-                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
+                  [{"name":"DATA_BUCKET","value":"sagemaker-${AWS::Region}-${AWS::AccountId}","type":"PLAINTEXT"}, {"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
               RunOrder: 1
         - Name: Deploy
           Actions:

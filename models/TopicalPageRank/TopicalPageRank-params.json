@@ -1,0 +1,10 @@
+{
+    "model_name": "TopicalPageRank",
+    "grammar": "NP: {<ADJ>*<NOUN|PROPN>}", 
+    "language": "de", 
+    "normalization": "None",
+    "n_topics": "100",
+    "window": "10", 
+    "max_count": "10",
+    "train_df": "factchecks_de.csv"
+}

@@ -31,4 +31,4 @@ docker build -q -t ${algorithm_name} .
 docker tag ${algorithm_name} ${fullname}:${STAGE}
 docker push ${fullname}
 
-printf '{"name":"%s","imageURI":"%s"}' "${algorithm_name}" "${fullname}:${STAGE}" > training_imageDetail.json
+printf '{"name":"%s","imageURI":"%s"}' "${algorithm_name}" "${fullname}:${STAGE}" > imageDetail.json

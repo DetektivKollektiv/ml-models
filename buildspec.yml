@@ -5,27 +5,35 @@ phases:
     runtime-versions:
       python: 3.8
     commands:
+      - echo "Preparing building container"
       - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock --host=tcp://127.0.0.1:2375 --storage-driver=overlay2 &
       - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
+      - echo "Installing requirements"
+      - pip install -r $CODEBUILD_SRC_DIR/requirements.txt
+      - pip install crhelper -t $CODEBUILD_SRC_DIR/custom_resource # Install custom resource helper into the CFN directory
+
 
   pre_build:
     commands:
       - echo Pre-build started on `date`
       - cd $CODEBUILD_SRC_DIR
-      - echo Build and push container for Multi-Model-Endpoint
+      - echo "Build and push container for Multi-Model-Endpoint"
       - cd multi-model-endpoint/container
       - ./build_and_push.sh 
       - cd $CODEBUILD_SRC_DIR
-      - echo Build and push container for training
+      - echo "Build and push container for training"
       - cd training/container
       - ./build_and_push.sh 
+      - echo Get pipeline name
+      - export PIPELINE_NAME=${CODEBUILD_INITIATOR#codepipeline/}
+      - echo $PIPELINE_NAME
 
   build:
     commands:
       - echo Build started on `date`
       - cd $CODEBUILD_SRC_DIR
       - echo Run the workflow script
-      - python multi-model-endpoint/run.py --model-name=$MODEL_NAME --stage=$STAGE --role=$ROLE_ARN --output-dir=assets --ecr-dir=multi-model-endpoint/container
+      - python models/run.py --pipeline-name=$PIPELINE_NAME --model-name=$MODEL_NAME --stage=$STAGE --role=$ROLE_ARN --data-bucket=$DATA_BUCKET --data-dir=$CODEBUILD_SRC_DIR_DataSourceOutput --output-dir=assets --endpoint-dir=multi-model-endpoint --training-dir=training
       - echo TODO Train models
       - echo TODO Upload models to S3 bucket to be used by test Multi-Model-Endpoint
 
