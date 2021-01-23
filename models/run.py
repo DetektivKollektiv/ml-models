@@ -63,7 +63,7 @@ def get_endpoint_params(model_name, role, image_uri, stage):
     }
 
 def get_models():
-    with open("models_to_be_trained.json", "r") as f:
+    with open("models/models_to_be_trained.json", "r") as f:
         models_json = json.load(f)
     models = []
     for model in models_json:
