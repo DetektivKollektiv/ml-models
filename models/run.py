@@ -183,7 +183,6 @@ if __name__ == "__main__":
     parser.add_argument("--pipeline-name", required=True)
     parser.add_argument("--model-name", required=True)
     parser.add_argument("--role", required=True)
-    parser.add_argument("--data-bucket", required=True)
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--endpoint-dir", required=True)
     parser.add_argument("--training-dir", required=True)
