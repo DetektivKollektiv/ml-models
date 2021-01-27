@@ -3,32 +3,46 @@ import json
 import os
 import sys
 import time
+import tarfile
 
 import boto3
 import sagemaker
 from sagemaker.workflow.airflow import training_config
 
+sagemaker_session = sagemaker.session.Session()
+bucket = sagemaker_session.default_bucket()
 
+def create_tar_file(source_files, filename):
+    with tarfile.open(filename, mode="w:gz") as t:
+        for sf in source_files:
+            # Add all files into the root of the directory structure of the tar
+            t.add(sf, arcname=os.path.basename(sf))
+    return filename
+    
 def get_training_params(
     model_name,
     job_id,
     role,
     image_uri,
     training_uri,
-    output_uri,
     hyperparameters,
 ):
+    model_uri = "s3://{0}/{1}".format(bucket, model_name)
+
+    # include location of tarfile and name of training script
+    hyperparameters["sagemaker_program"] = "train.py"
+    hyperparameters["sagemaker_submit_directory"] = model_uri+"/code"
+
     # Create the estimator
     estimator = sagemaker.estimator.Estimator(
         image_uri,
         role,
-        instance_count=1,
-        instance_type="ml.m5.large",
-        output_path=output_uri,
+        train_instance_count=1,
+        train_instance_type="ml.m5.large",
+        base_job_name = model_name,
+        output_path = model_uri+"/model",
+        hyperparameters=hyperparameters
     )
-    # Set the hyperparameters
-    estimator.set_hyperparameters(**hyperparameters)
-
     # Specify the data source
     s3_input_train = sagemaker.inputs.TrainingInput(
         s3_data=training_uri, content_type="csv"
@@ -88,7 +102,6 @@ def main(
     pipeline_name,
     model_name,
     role,
-    data_bucket,
     data_dir,
     endpoint_dir,
     training_dir,
@@ -98,7 +111,6 @@ def main(
     # Get the job id and source revisions
     job_id = get_pipeline_id(pipeline_name)
     print("job id: {}".format(job_id))
-    output_uri = "s3://{0}/{1}".format(data_bucket, model_name)
 
     # Load the endpoint image uri and input data config
     endpoint_image_uri = get_image_uri(endpoint_dir)
@@ -124,6 +136,17 @@ def main(
             training_uri = training_uri.replace("STAGE", stage)
             training_file = input_data["Training"]["file_name"]
             print("Train model {} with data {} in {}".format(model, training_uri, training_file))
+            # create tar file with training script
+            tar_file = os.path.join(model_dir, "train.tar.gz")
+            create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
+            # upload tar file to S3
+            sources = sagemaker_session.upload_data(tar_file, bucket, model + '/code')
+            print(sources)
+            # delete tar file after uploading
+            try:
+                os.remove(tar_file)
+            except OSError:
+                pass
 
         # Configure experiments and trials
         trials[model] = get_trial(model, job_id)
@@ -137,7 +160,6 @@ def main(
                 role,
                 training_image_uri,
                 training_uri,
-                output_uri,
                 hyperparameters,
             )
 
