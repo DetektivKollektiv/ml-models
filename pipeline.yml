@@ -94,13 +94,18 @@ Resources:
           import io
           import zipfile
           import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
 
           s3 = boto3.client('s3')
           sm = boto3.client('sagemaker')
           codepipeline = boto3.client('codepipeline')
 
           def lambda_handler(event, context):
-              print('event', json.dumps(event))
+              logger.info('Calling get_language with event')
+              logger.info(event)
               jobId = event["CodePipeline.job"]["id"]
               experiment = None
               trial = None
@@ -114,24 +119,25 @@ Resources:
                             trials = json.loads(z.read('trials.json').decode('utf-8'))
 
                   if trials is None:
+                    logger.error("Experiment and Trail config not found")
                     raise(Exception("Experiment and Trail config not found"))
 
                   for trial in trials:
                     try:
                         response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
-                        print('created exp', response)
+                        logger.info('created exp', response)
                     except Exception as e:
-                        print('error creating exp', e)
+                        logger.error('error creating exp', e)
                     try:
                         response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
-                        print('created trial', response)
+                        logger.info('created trial', response)
                     except Exception as e:
-                        print('error creating trial', e)
+                        logger.error('error creating trial', e)
 
                   # and update codepipeline
                   codepipeline.put_job_success_result(jobId=jobId)
               except Exception as e:
-                  print(e)
+                  logger.error(e)
                   resp = codepipeline.put_job_failure_result(
                       jobId=jobId,
                       failureDetails={
