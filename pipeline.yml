@@ -189,7 +189,7 @@ Resources:
                 ProjectName: !Ref BuildProject
                 PrimarySource: SourceOutput
                 EnvironmentVariables: !Sub >-
-                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
+                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ARTIFACT_BUCKET","value":"${ArtifactBucket}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
               RunOrder: 1
         - Name: Train
           Actions:
