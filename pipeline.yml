@@ -104,7 +104,7 @@ Resources:
           codepipeline = boto3.client('codepipeline')
 
           def lambda_handler(event, context):
-              logger.info('Calling get_language with event')
+              logger.info('Calling CreateExperiment with event')
               logger.info(event)
               jobId = event["CodePipeline.job"]["id"]
               experiment = None
@@ -121,6 +121,8 @@ Resources:
                   if trials is None:
                     logger.error("Experiment and Trail config not found")
                     raise(Exception("Experiment and Trail config not found"))
+                  else:
+                    logger.info('Trials:', trials)
 
                   for trial in trials:
                     try:
