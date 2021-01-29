@@ -114,27 +114,75 @@ Resources:
                   for inputArtifacts in event["CodePipeline.job"]["data"]["inputArtifacts"]:
                       if inputArtifacts['name'] == 'BuildOutput':
                           s3Location = inputArtifacts['location']['s3Location']
-                          zip_bytes = s3.get_object(Bucket=s3Location['bucketName'], Key=s3Location['objectKey'])['Body'].read()
-                          with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as z:
-                            trials = json.load(z.read('trials.json').decode('utf-8'))
+                          response = s3.get_object(Bucket=s3Location['bucketName'], Key=s3Location['objectKey'])
+                          zip_bytes = response['Body'].read()
+                          with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+                            with z.open('trials.json') as myfile:
+                                trials_binary = myfile.read()
+                          trials_str = trials_binary.decode("UTF-8")
+                          trials = json.loads(trials_str)
 
                   if trials is None:
-                    logger.error("Experiment and Trail config not found")
-                    raise(Exception("Experiment and Trail config not found"))
-                  else:
-                    logger.info('Trials:', trials)
+                      logger.error("Experiment and Trail config not found")
+                      raise(Exception("Experiment and Trail config not found"))
 
-                  for trial in trials:
-                    try:
-                        response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
-                        logger.info('created exp', response)
-                    except Exception as e:
-                        logger.error('error creating exp', e)
-                    try:
-                        response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
-                        logger.info('created trial', response)
-                    except Exception as e:
-                        logger.error('error creating trial', e)
+                  for model in trials:
+                      trial = trials[model]
+                      response = sm.search(
+                          Resource='Experiment',
+                          SearchExpression={
+                              'Filters': [
+                                  {
+                                      'Name': 'ExperimentName',
+                                      'Operator': 'Equals',
+                                      'Value': trial["ExperimentName"]
+                                  }
+                              ]
+                          }
+                      )
+                      experiment_found = False
+                      results = response['Results']
+                      if len(results)>0:
+                          if 'Experiment' in results[0]:
+                              if 'ExperimentName' in results[0]['Experiment']:
+                                  if results[0]['Experiment']['ExperimentName'] == trial["ExperimentName"]:
+                                      experiment_found = True
+                      try:
+                          if not experiment_found:
+                              response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
+                              logger.info('Experiment created.')
+                      except Exception as e:
+                          logger.error('error creating exp', e)
+                      response = sm.search(
+                          Resource='ExperimentTrial',
+                          SearchExpression={
+                              'Filters': [
+                                  {
+                                      'Name': 'ExperimentName',
+                                      'Operator': 'Equals',
+                                      'Value': trial["ExperimentName"]
+                                  },
+                                  {
+                                      'Name': 'TrialName',
+                                      'Operator': 'Equals',
+                                      'Value': trial["TrialName"]
+                                  }
+                              ]
+                          }
+                      )
+                      trial_found = False
+                      results = response['Results']
+                      if len(results)>0:
+                          if 'Trial' in results[0]:
+                              if 'TrialName' in results[0]['Trial']:
+                                  if results[0]['Trial']['TrialName'] == trial["TrialName"]:
+                                      trial_found = True
+                      try:
+                          if not trial_found:
+                              response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
+                              logger.info('Trial created.')
+                      except Exception as e:
+                          logger.error('error creating trial', e)
 
                   # and update codepipeline
                   codepipeline.put_job_success_result(jobId=jobId)
