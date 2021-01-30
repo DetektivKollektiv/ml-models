@@ -121,11 +121,7 @@ def main(
     # Create trials for all models
     trials = {}
     # Write training job template
-    training_template = "Description: Wait for training jobs\n" \
-                        "Parameters:\n" \
-                        "   TrainJobId:\n" \
-                        "       Type: String\n" \
-                        "       Description: Id of the Codepipeline + SagemakerJobs\n" \
+    training_template = "Description: Create training jobs\n" \
                         "\n" \
                         "Resources:\n"
 
@@ -169,7 +165,7 @@ def main(
         training_template +=    '       Type: Custom::TrainingJob\n' \
                                 '       Properties:\n' \
                                 '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
-        training_template +=    '           TrainingJobName: !Sub mlops-'+model+'-'+job_id+'\n'
+        training_template +=    '           TrainingJobName: mlops-'+model+'-'+job_id+'\n'
         training_template +=    '           TrainingJobRequest: '+training_request+'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
         training_template +=    '           TrialName: '+job_id+'\n\n'
