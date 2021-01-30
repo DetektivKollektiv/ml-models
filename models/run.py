@@ -180,7 +180,7 @@ def main(
 
     # Write the training template
     with open(os.path.join(output_dir, "training-job.yml"), "w") as f:
-        json.dump(training_template, f)
+        f.write(training_template)
 
     # Write the dev & prod params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
