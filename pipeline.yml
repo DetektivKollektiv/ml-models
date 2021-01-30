@@ -317,7 +317,8 @@ Resources:
               - 's3:ListBucket'
               - 's3:PutObject'
             Resource:
-              - 'arn:aws:s3:::nyc-tlc/*'
+              - !Sub 'arn:aws:s3:::factchecks-${Stage}'
+              - !Sub 'arn:aws:s3:::factchecks-${Stage}/*'
               - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'
               - !Sub 'arn:aws:s3:::${ArtifactBucket}'
               - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}/*'
