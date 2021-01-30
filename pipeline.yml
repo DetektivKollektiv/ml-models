@@ -608,3 +608,15 @@ Resources:
                 Condition:
                   StringEquals:
                     'iam:PassedToService': sagemaker.amazonaws.com
+              - Sid: PullRepositoryImages
+                Effect: Allow
+                Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:ListImages'
+                  - 'ecr:ListTagsForResource'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
