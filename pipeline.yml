@@ -241,6 +241,21 @@ Resources:
                 EnvironmentVariables: !Sub >-
                   [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ARTIFACT_BUCKET","value":"${ArtifactBucket}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
               RunOrder: 1
+            - Name: SetupTraining
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt MLOpsRole.Arn
+                Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                StackName: sagemaker-custom-resource
+                TemplatePath: 'BuildOutput::template-custom-resource.yml'
+              RunOrder: 2
         - Name: Train
           Actions:
             - Name: CreateExperiment
