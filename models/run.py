@@ -19,7 +19,7 @@ def create_tar_file(source_files, filename):
             t.add(sf, arcname=os.path.basename(sf))
     return filename
     
-def get_training_params(
+def get_training_request(
     model_name,
     job_id,
     role,
@@ -51,13 +51,7 @@ def get_training_params(
 
     # Get the training request
     request = training_config(estimator, inputs=data, job_name=job_id)
-    return {
-        "Parameters": {
-            "ModelName": model_name,
-            "TrainJobId": job_id,
-            "TrainJobRequest": json.dumps(request),
-        }
-    }
+    return json.dumps(request)
     
 def get_endpoint_params(model_name, role, image_uri, stage):
     return {
@@ -126,7 +120,15 @@ def main(
 
     # Create trials for all models
     trials = {}
-    training_jobs = {}
+    # Write training job template
+    training_template = "Description: Wait for training jobs\n" \
+                        "Parameters:\n" \
+                        "   TrainJobId:\n" \
+                        "       Type: String\n" \
+                        "       Description: Id of the Codepipeline + SagemakerJobs\n" \
+                        "\n" \
+                        "Resources:\n"
+
     for model in models:
         model_dir = os.path.join("models", model)
         with open(os.path.join(model_dir, "inputData.json"), "r") as f:
@@ -153,7 +155,7 @@ def main(
         # Configure training requests
         with open(os.path.join(model_dir, model+"-params.json"), "r") as f:
             hyperparameters = json.load(f)
-        training_jobs[model] = get_training_params(
+        training_request = get_training_request(
                 model,
                 job_id,
                 role,
@@ -162,14 +164,23 @@ def main(
                 hyperparameters,
             )
 
+        # create Cloudformation template for training jobs
+        training_template +=    '   {}TrainingJob:\n'.format(model)
+        training_template +=    '       Type: Custom::TrainingJob\n' \
+                                '       Properties:\n' \
+                                '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
+        training_template +=    '           TrainingJobName: !Sub mlops-'+model+'-'+job_id+'\n'
+        training_template +=    '           TrainingJobRequest: '+training_request+'\n'
+        training_template +=    '           ExperimentName: {}'.format(model)+'\n'
+        training_template +=    '           TrialName: '+job_id+'\n\n'
+
     # Write experiment and trial configs
     with open(os.path.join(output_dir, "trials.json"), "w") as f:
         json.dump(trials, f)
 
-    # Write the training request
-    with open(os.path.join(output_dir, "training-jobs.json"), "w") as f:
-        json.dump(training_jobs, f)
-        print("Training requests:\n {}".format(json.dumps(training_jobs)))
+    # Write the training template
+    with open(os.path.join(output_dir, "training-job.yml"), "w") as f:
+        json.dump(training_template, f)
 
     # Write the dev & prod params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:

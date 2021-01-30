@@ -47,7 +47,6 @@ Resources:
                   - sagemaker:DescribeProcessingJob
                   - sagemaker:CreateProcessingJob
                   - sagemaker:StopProcessingJob
-                  - kms:CreateGrant # Required if KmsKeyId specified
                 Resource: "*"
               - Sid: AllowLambda
                 Effect: Allow
