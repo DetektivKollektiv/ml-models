@@ -15,6 +15,7 @@ MMS supports a pluggable custom backend handler where you can implement your own
 ## ModelHandler defines a model handler for load and inference requests for the different models
 
 Each supported model need to be considered in model_handler.py.
+
 The model artifacts include among others a json file, e.g. TopicalPageRank-params.json which provides parameters to be used in the predictions.
 
 ### TopicalPageRank artifacts
@@ -22,11 +23,24 @@ The artifacts comprise the files:
 TopicalPageRank-params.json
 TopicalPageRank-model
 
+# Training of models
+
+## models_to_be_trained.json
+In this file you can configure which models shall be trained.
+
+## pipeline.yml
+For training of the models access is required to the corresponding buckets, allow access on these buckets in S3Policy.
+
+## Models
+Supported models needs a training script train.py, inputData.json for specifying the location of training data and a json file specifying the parameters required for training and inference.
 Example of TopicalPageRank-params.json:
 {
+    "model_name": "TopicalPageRank",
+    "grammar": "NP: {<ADJ>*<NOUN|PROPN>}", 
     "language": "de", 
-    "grammar": "NP: {<ADJ>*<NOUN|PROPN>}",
-    "normalization": "stemming",
-    "window": 10,
-    "max_count": 5
+    "normalization": "None",
+    "n_topics": "100",
+    "window": "10", 
+    "max_count": "10",
+    "train_df": "factchecks_de.csv"
 }
