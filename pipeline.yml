@@ -267,7 +267,6 @@ Resources:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt MLOpsRole.Arn
                 StackName: !Sub '${ModelName}-training-job'
-                TemplateConfiguration: 'BuildOutput::training-job.json'
                 TemplatePath: 'BuildOutput::training-job.yml'
               RunOrder: 2
         - Name: Deploy
