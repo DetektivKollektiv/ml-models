@@ -166,7 +166,7 @@ def main(
                                 '       Properties:\n' \
                                 '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
         training_template +=    '           TrainingJobName: mlops-'+model+'-'+job_id+'\n'
-        training_template +=    '           TrainingJobRequest: '+training_request+'\n'
+        training_template +=    '           TrainingJobRequest: \''+training_request+'\'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
         training_template +=    '           TrialName: '+job_id+'\n\n'
 
