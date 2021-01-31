@@ -615,6 +615,8 @@ Resources:
                   - 'ecr:GetDownloadUrlForLayer'
                   - 'ecr:BatchGetImage'
                   - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:DescribeRepositories'
+                  - 'ecr:DescribeImages'
                   - 'ecr:ListImages'
                   - 'ecr:ListTagsForResource'
                 Resource: 
