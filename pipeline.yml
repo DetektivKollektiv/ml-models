@@ -619,6 +619,12 @@ Resources:
                   - 'ecr:DescribeImages'
                   - 'ecr:ListImages'
                   - 'ecr:ListTagsForResource'
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:DescribeRegistry'
+                  - 'ecr:GetLifecyclePolicy'
+                  - 'ecr:GetLifecyclePolicyPreview'
+                  - 'ecr:GetRegistryPolicy'
+                  - 'ecr:GetRepositoryPolicy'
                 Resource: 
                   - !Sub >-
                     arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
