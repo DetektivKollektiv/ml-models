@@ -619,7 +619,6 @@ Resources:
                   - 'ecr:DescribeImages'
                   - 'ecr:ListImages'
                   - 'ecr:ListTagsForResource'
-                  - 'ecr:GetAuthorizationToken'
                   - 'ecr:DescribeRegistry'
                   - 'ecr:GetLifecyclePolicy'
                   - 'ecr:GetLifecyclePolicyPreview'
@@ -628,3 +627,15 @@ Resources:
                 Resource: 
                   - !Sub >-
                     arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
+              - Sid: ListImagesInRepository
+                Effect: Allow
+                Action:
+                  - 'ecr:ListImages'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}
+              - Sid: GetAuthorizationToken
+                Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                Resource: '*'
