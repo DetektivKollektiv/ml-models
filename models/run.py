@@ -19,6 +19,10 @@ def create_tar_file(source_files, filename):
             t.add(sf, arcname=os.path.basename(sf))
     return filename
     
+# JSON encode hyperparameters.
+def json_encode_hyperparameters(hyperparameters):
+    return {str(k): json.dumps(v) for (k, v) in hyperparameters.items()}
+
 def get_training_request(
     model_name,
     job_id,
@@ -31,7 +35,8 @@ def get_training_request(
 
     # include location of tarfile and name of training script
     hyperparameters["sagemaker_program"] = "train.py"
-    hyperparameters["sagemaker_submit_directory"] = model_uri+"/code"
+    hyperparameters["sagemaker_submit_directory"] = model_uri+"/code/train.tar.gz"
+    params = json_encode_hyperparameters(hyperparameters)
 
     # Create the estimator
     estimator = sagemaker.estimator.Estimator(
@@ -41,7 +46,7 @@ def get_training_request(
         train_instance_type="ml.m5.large",
         base_job_name = model_name,
         output_path = model_uri+"/model",
-        hyperparameters=hyperparameters
+        hyperparameters=params
     )
     # Specify the data source
     s3_input_train = sagemaker.inputs.TrainingInput(

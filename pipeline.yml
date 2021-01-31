@@ -552,6 +552,11 @@ Resources:
                   - 'iam:CreateServiceLinkedRole'
                   - 'lambda:InvokeFunction'
                 Resource: '*'
+              - Sid: SageMakerTraining
+                Effect: Allow
+                Action:
+                  - 'sagemaker:CreateTrainingJob'
+                Resource: '*'
               - Sid: SageMakerDeployment
                 Effect: Allow
                 Action:
