@@ -198,6 +198,66 @@ Resources:
                   )
               return 'Done'
       Description: Function that creates an experiment and trial
+  DeployModels:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ModelName}-deploy-models-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt MLOpsRole.Arn
+      Runtime: python3.8
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import io
+          import zipfile
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          s3 = boto3.client('s3')
+          codepipeline = boto3.client('codepipeline')
+
+          def lambda_handler(event, context):
+              logger.info('Calling DeployModels with event')
+              logger.info(event)
+              jobId = event["CodePipeline.job"]["id"]
+
+              try:
+                  for inputArtifacts in event["CodePipeline.job"]["data"]["inputArtifacts"]:
+                      if inputArtifacts['name'] == 'BuildOutput':
+                          s3Location = inputArtifacts['location']['s3Location']
+                          response = s3.get_object(Bucket=s3Location['bucketName'], Key=s3Location['objectKey'])
+                          zip_bytes = response['Body'].read()
+                          with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+                            with z.open('deploy-endpoint.json') as myfile:
+                                deployment_binary = myfile.read()
+                          delpoyment_str = deployment_binary.decode("UTF-8")
+                          deploy_endpoint = json.loads(deployment_str)
+
+                  if deploy_endpoint is None:
+                      logger.error("deploy-endpoint.json not found")
+                      raise(Exception("deploy-endpoint.json not found"))
+
+                  for model in deploy_endpoint["ModelLocations"]:
+                    destFileKey = 's3://'' + deploy_endpoint["MultiModelName"] + '/' + model + '-' + deploy_endpoint["TrainingJobName"] + '.tar.gz'
+                    copySource = model_location[model] + '/' + "model.tar.gz"
+                    s3.Object(s3BucketName, destFileKey).copy_from(CopySource=copySource)
+              except Exception as e:
+                  logger.error(e)
+                  resp = codepipeline.put_job_failure_result(
+                      jobId=jobId,
+                      failureDetails={
+                          'type': 'ConfigurationError',
+                          'message': str(e),
+                          'externalExecutionId': context.aws_request_id
+                      }
+                  )
+              return 'Done'
+      Description: Function that deploys trained model to the multi model bucket
   DeployPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
@@ -286,7 +346,19 @@ Resources:
               RunOrder: 2
         - Name: Deploy
           Actions:
-            - Name: DeployModelDev
+            - Name: DeployModels
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Version: '1'
+                Provider: Lambda
+              Configuration:
+                FunctionName: !Ref DeployModels
+                UserParameters: !Sub 'mlops-pipeline-${ModelName}'
+              RunOrder: 1
+            - Name: DeployEndpoint
               InputArtifacts:
                 - Name: BuildOutput
               ActionTypeId:
@@ -300,7 +372,7 @@ Resources:
                 StackName: !Sub '${ModelName}-${Stage}'
                 TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
                 TemplatePath: 'BuildOutput::deploy-endpoint.yml'
-              RunOrder: 1
+              RunOrder: 2
   S3Policy:
     Type: 'AWS::IAM::Policy'
     Properties:

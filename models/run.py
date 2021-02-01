@@ -58,13 +58,17 @@ def get_training_request(
     request = training_config(estimator, inputs=data, job_name=job_id)
     return json.dumps(request)
     
-def get_endpoint_params(model_name, role, image_uri, stage):
+def get_endpoint_params(model_name, role, image_uri, stage, training_requests):
+    model_location = {}
+    for model in training_requests:
+        model_location[model] = training_requests["OutputDataConfig"]["S3OutputPath"]+"/"+training_requests["TrainingJobName"]
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
-            "ModelName": model_name,
+            "MultiModelName": model_name,
             "ModelsPrefix": model_name+"-"+stage,
             "MLOpsRoleArn": role,
+            "ModelLocations": model_location,
             "Stage": stage,
         }
     }
@@ -125,6 +129,10 @@ def main(
 
     # Create trials for all models
     trials = {}
+
+    # Create training requests for all models
+    training_requests = {}
+
     # Write training job template
     training_template = "Description: Create training jobs\n" \
                         "\n" \
@@ -156,7 +164,7 @@ def main(
         # Configure training requests
         with open(os.path.join(model_dir, model+"-params.json"), "r") as f:
             hyperparameters = json.load(f)
-        training_request = get_training_request(
+        training_requests[model] = get_training_request(
                 model,
                 job_id,
                 role,
@@ -170,8 +178,8 @@ def main(
         training_template +=    '       Type: Custom::TrainingJob\n' \
                                 '       Properties:\n' \
                                 '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
-        training_template +=    '           TrainingJobName: mlops-'+model+'-'+job_id+'\n'
-        training_template +=    '           TrainingJobRequest: \''+training_request+'\'\n'
+        training_template +=    '           TrainingJobName: '+job_id+'\n'
+        training_template +=    '           TrainingJobRequest: \''+training_requests[model]+'\'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
         training_template +=    '           TrialName: '+job_id+'\n\n'
 
@@ -185,7 +193,7 @@ def main(
 
     # Write the dev & prod params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
-        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage)
+        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests)
         json.dump(params, f)
 
 
