@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import tarfile
+import shutil 
 
 import boto3
 import sagemaker
@@ -61,7 +62,7 @@ def get_training_request(
 def get_endpoint_params(model_name, role, image_uri, stage, training_requests):
     model_location = {}
     for model in training_requests:
-        model_location[model] = training_requests["OutputDataConfig"]["S3OutputPath"]+"/"+training_requests["TrainingJobName"]
+        model_location[model] = training_requests["OutputDataConfig"]["S3OutputPath"]+"/"+training_requests["TrainingJobName"]+"/output"
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
@@ -162,7 +163,9 @@ def main(
         trials[model] = get_trial(model, job_id)
 
         # Configure training requests
-        with open(os.path.join(model_dir, model+"-params.json"), "r") as f:
+        params_file = os.path.join(model_dir, model+"-params.json")
+        shutil.copyfile(params_file, "assets/"+model+"-params.json")
+        with open(os.path.join(params_file), "r") as f:
             hyperparameters = json.load(f)
         training_requests[model] = get_training_request(
                 model,

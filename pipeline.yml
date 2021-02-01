@@ -214,6 +214,7 @@ Resources:
           import zipfile
           import json
           import logging
+          import tarfile
 
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
@@ -229,6 +230,7 @@ Resources:
               try:
                   for inputArtifacts in event["CodePipeline.job"]["data"]["inputArtifacts"]:
                       if inputArtifacts['name'] == 'BuildOutput':
+                          # read deploy-endpoint.json
                           s3Location = inputArtifacts['location']['s3Location']
                           response = s3.get_object(Bucket=s3Location['bucketName'], Key=s3Location['objectKey'])
                           zip_bytes = response['Body'].read()
@@ -238,14 +240,22 @@ Resources:
                           delpoyment_str = deployment_binary.decode("UTF-8")
                           deploy_endpoint = json.loads(deployment_str)
 
+                          for model in deploy_endpoint["ModelLocations"]:
+                              copySource = model_location[model] + '/' + "model.tar.gz"
+                              bucket, key = copySource.split('/',2)[-1].split('/',1)
+                              response = s3.get_object(Bucket=bucket, Key=key)
+                              tar_bytes = response['Body'].read()
+                              with tarfile.open(io.BytesIO(tar_bytes), "w") as tar:
+                                  with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+                                      with z.open(model+"-params.json") as myfile:
+                                          tar.add(myfile)
+                              destFileKey = 's3://'' + deploy_endpoint["MultiModelName"] + '/' + model + '-' + deploy_endpoint["TrainingJobName"] + '.tar.gz'
+                              s3.Object(s3BucketName, destFileKey).copy_from(CopySource=copySource)
+
                   if deploy_endpoint is None:
                       logger.error("deploy-endpoint.json not found")
                       raise(Exception("deploy-endpoint.json not found"))
 
-                  for model in deploy_endpoint["ModelLocations"]:
-                    destFileKey = 's3://'' + deploy_endpoint["MultiModelName"] + '/' + model + '-' + deploy_endpoint["TrainingJobName"] + '.tar.gz'
-                    copySource = model_location[model] + '/' + "model.tar.gz"
-                    s3.Object(s3BucketName, destFileKey).copy_from(CopySource=copySource)
               except Exception as e:
                   logger.error(e)
                   resp = codepipeline.put_job_failure_result(
