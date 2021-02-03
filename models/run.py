@@ -62,7 +62,7 @@ def get_training_request(
 def get_endpoint_params(model_name, role, image_uri, stage, training_requests):
     model_location = {}
     for model in training_requests:
-        model_location[model] = training_requests["OutputDataConfig"]["S3OutputPath"]+"/"+training_requests["TrainingJobName"]+"/output"
+        model_location[model] = training_requests[model]["OutputDataConfig"]["S3OutputPath"]+"/"+training_requests["TrainingJobName"]+"/output"
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,

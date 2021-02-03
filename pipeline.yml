@@ -204,7 +204,7 @@ Resources:
       FunctionName: !Sub '${ModelName}-deploy-models-${Stage}'
       Handler: index.lambda_handler
       MemorySize: 512
-      Role: !GetAtt MLOpsRole.Arn
+      Role: !GetAtt SageMakerRole.Arn
       Runtime: python3.8
       Timeout: 60
       Code:
