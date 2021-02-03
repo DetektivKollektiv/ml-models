@@ -249,7 +249,7 @@ Resources:
                                   with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
                                       with z.open(model+"-params.json") as myfile:
                                           tar.add(myfile)
-                              destFileKey = 's3://'' + deploy_endpoint["MultiModelName"] + '/' + model + '-' + deploy_endpoint["TrainingJobName"] + '.tar.gz'
+                              destFileKey = 's3://'' + deploy_endpoint["MultiModelName"] + '/models/' + model + '-' + jobId + '.tar.gz'
                               s3.Object(s3BucketName, destFileKey).copy_from(CopySource=copySource)
 
                   if deploy_endpoint is None:

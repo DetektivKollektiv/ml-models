@@ -17,7 +17,8 @@ Resources:
       ModelName: !Sub ${ModelName}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
-        ModelDataUrl: !Sub s3://sagemaker-${AWS::Region}-${AWS::AccountId}/${ModelName}
+        ModelDataUrl: !Sub s3://${ModelName}/models
+        Mode: MultiModel
       ExecutionRoleArn: !Ref MLOpsRoleArn
 
   EndpointConfig:
@@ -28,7 +29,7 @@ Resources:
           InitialVariantWeight: 1.0
           InstanceType: ml.t2.medium
           ModelName: !GetAtt Model.ModelName
-          VariantName: !Ref VariantName
+          VariantName: AllTraffic
       EndpointConfigName: !Sub ${ModelName}
       Tags:
         - Key: Name
