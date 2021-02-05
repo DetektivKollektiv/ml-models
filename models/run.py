@@ -67,8 +67,8 @@ def get_endpoint_params(model_name, role, image_uri, stage, training_requests):
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
-            "MultiModelName": model_name,
-            "ModelsPrefix": model_name+"-"+stage,
+            "ModelName": model_name,
+            "ModelsPrefix": stage,
             "MLOpsRoleArn": role,
             "ModelLocations": model_location,
             "Stage": stage,

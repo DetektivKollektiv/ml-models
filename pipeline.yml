@@ -62,6 +62,13 @@ Resources:
       AccessControl: Private
       VersioningConfiguration:
         Status: Enabled
+  ModelBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${ModelName}'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
   BuildProject:
     Type: 'AWS::CodeBuild::Project'
     Properties:
@@ -215,11 +222,14 @@ Resources:
           import json
           import logging
           import tarfile
+          from botocore.client import ClientError
 
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
 
           s3 = boto3.client('s3')
+          s3_resource = boto3.resource('s3')
+          region = boto3.Session().region_name          
           codepipeline = boto3.client('codepipeline')
 
           def lambda_handler(event, context):
@@ -240,20 +250,21 @@ Resources:
                           deployment_str = deployment_binary.decode("UTF-8")
                           deploy_endpoint = json.loads(deployment_str)
 
-                          for model in deploy_endpoint["ModelLocations"]:
-                              copySource = model_location[model] + '/' + "model.tar.gz"
+                          for model in deploy_endpoint["Parameters"]["ModelLocations"]:
+                              copySource = deploy_endpoint["Parameters"]["ModelLocations"][model] + '/' + "model.tar.gz"
                               bucket, key = copySource.split('/',2)[-1].split('/',1)
-                              response = s3.get_object(Bucket=bucket, Key=key)
-                              tar_bytes = response['Body'].read()
-                              with tarfile.open(io.BytesIO(tar_bytes), "w") as tar:
-                                  with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
-                                      with z.open(model+"-params.json") as myfile:
-                                          tar.add(myfile)
-                              destFileKey = 's3://' + deploy_endpoint["MultiModelName"] + '/models/' + model + '-' + jobId + '.tar.gz'
+                              s3.download_file(bucket, key, '/tmp/model.tar.gz')
+                              with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+                                  z.extract(model+"-params.json", "/tmp")
+                              with tarfile.open("/tmp/model.tar.gz") as tar:
+                                  tar.extractall("/tmp")
+                              tar_name = "/tmp/" + model + "-" + jobId + ".tar.gz"
+                              with tarfile.open(tar_name, "w:gz") as tar:
+                                  for name in ["/tmp/"+model+"-model", "/tmp/"+model+"-params.json"]: 
+                                      tar.add(name)
+                              destFileKey = 's3://' + deploy_endpoint["Parameters"]["ModelName"] + '/' + deploy_endpoint["Parameters"]["ModelsPrefix"] + '/' + model + '-' + jobId + '.tar.gz'
                               destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
-                              print("Destination bucket: {}").format(destbucket)
-                              print("Destination key: {}").format(destkey)
-                              s3.Object(destbucket, destkey).copy_from(CopySource=copySource)
+                              s3.upload_file(tar_name, destbucket, destkey)
 
                   if deploy_endpoint is None:
                       logger.error("deploy-endpoint.json not found")
@@ -326,7 +337,7 @@ Resources:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt MLOpsRole.Arn
                 Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
-                StackName: sagemaker-custom-resource
+                StackName: !Sub 'sagemaker-custom-resource-${Stage}'
                 TemplatePath: 'BuildOutput::template-custom-resource.yml'
               RunOrder: 2
         - Name: Train
@@ -354,7 +365,7 @@ Resources:
 #              Configuration:
 #                ActionMode: REPLACE_ON_FAILURE
 #                RoleArn: !GetAtt MLOpsRole.Arn
-#                StackName: !Sub '${ModelName}-training-job'
+#                StackName: !Sub '${ModelName}-training-job-${Stage}'
 #                TemplatePath: 'BuildOutput::training-job.yml'
 #              RunOrder: 2
         - Name: Deploy
@@ -382,7 +393,7 @@ Resources:
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt MLOpsRole.Arn
-                StackName: !Sub '${ModelName}-${Stage}'
+                StackName: !Sub '${ModelName}-endpoint-${Stage}'
                 TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
                 TemplatePath: 'BuildOutput::deploy-endpoint.yml'
               RunOrder: 2
@@ -402,6 +413,9 @@ Resources:
               - 's3:ListBucket'
               - 's3:PutObject'
             Resource:
+              - !Sub 'arn:aws:s3:::${ModelBucket}/${Stage}/*'
+              - !Sub 'arn:aws:s3:::${ModelBucket}/${Stage}'
+              - !Sub 'arn:aws:s3:::${ModelBucket}'
               - !Sub 'arn:aws:s3:::factchecks-${Stage}'
               - !Sub 'arn:aws:s3:::factchecks-${Stage}/*'
               - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'

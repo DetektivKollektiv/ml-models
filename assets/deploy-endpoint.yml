@@ -6,6 +6,9 @@ Parameters:
   ModelName:
     Type: String
     Description: Name of the model
+  ModelsPrefix:
+    Type: String
+    Description: Prefix of models
   MLOpsRoleArn:
     Type: String
     Description: The role for executing the deployment
@@ -17,7 +20,7 @@ Resources:
       ModelName: !Sub ${ModelName}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
-        ModelDataUrl: !Sub s3://${ModelName}/models
+        ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}
         Mode: MultiModel
       ExecutionRoleArn: !Ref MLOpsRoleArn
 
