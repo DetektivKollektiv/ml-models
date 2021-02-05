@@ -228,8 +228,6 @@ Resources:
           logger.setLevel(logging.INFO)
 
           s3 = boto3.client('s3')
-          s3_resource = boto3.resource('s3')
-          region = boto3.Session().region_name          
           codepipeline = boto3.client('codepipeline')
 
           def lambda_handler(event, context):
