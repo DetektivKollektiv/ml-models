@@ -352,20 +352,20 @@ Resources:
                 FunctionName: !Ref CreateExperiment
                 UserParameters: !Sub 'mlops-pipeline-${ModelName}'
               RunOrder: 1
-#            - Name: TrainModel
-#              InputArtifacts:
-#                - Name: BuildOutput
-#              ActionTypeId:
-#                Category: Deploy
-#                Owner: AWS
-#                Version: '1'
-#                Provider: CloudFormation
-#              Configuration:
-#                ActionMode: REPLACE_ON_FAILURE
-#                RoleArn: !GetAtt MLOpsRole.Arn
-#                StackName: !Sub '${ModelName}-training-job-${Stage}'
-#                TemplatePath: 'BuildOutput::training-job.yml'
-#              RunOrder: 2
+            - Name: TrainModel
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt MLOpsRole.Arn
+                StackName: !Sub '${ModelName}-training-job-${Stage}'
+                TemplatePath: 'BuildOutput::training-job.yml'
+              RunOrder: 2
         - Name: Deploy
           Actions:
             - Name: DeployModels
