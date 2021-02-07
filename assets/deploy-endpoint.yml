@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: "SAM template for the DetektivKollektiv ML model deployment" # Change for each template
 
-Description: Deploy a model at Sagemaker
 Parameters:
   ImageRepoUri:
     Type: String
