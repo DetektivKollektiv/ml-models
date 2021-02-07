@@ -12,12 +12,29 @@ Parameters:
   MLOpsRoleArn:
     Type: String
     Description: The role for executing the deployment
+  Stage:
+    Default: dev
+    Description: stage (corresponding to branch)
+    Type: String
+  ModelId:
+    Description: identifies default version of models
+    Type: String
 
 Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName:
+        Ref: Stage
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+        AddDefaultAuthorizerToCorsPreflight: false
+        InvokeRole: NONE
+
   Model:
     Type: "AWS::SageMaker::Model"
     Properties:
-      ModelName: !Sub ${ModelName}
+      ModelName: !Sub ${ModelName}-${Stage}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
         ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}
@@ -33,16 +50,63 @@ Resources:
           InstanceType: ml.t2.medium
           ModelName: !GetAtt Model.ModelName
           VariantName: AllTraffic
-      EndpointConfigName: !Sub ${ModelName}
+      EndpointConfigName: !Sub ${ModelName}-${Stage}
       Tags:
         - Key: Name
-          Value: !Sub ${ModelName}
+          Value: !Sub ${ModelName}-${Stage}
 
   Endpoint:
     Type: "AWS::SageMaker::Endpoint"
     Properties:
-      EndpointName: !Sub ${ModelName}
+      EndpointName: !Sub ${ModelName}-${Stage}
       EndpointConfigName: !GetAtt EndpointConfig.EndpointConfigName
       Tags:
         - Key: Name
-          Value: !Sub ${ModelName}
+          Value: !Sub ${ModelName}-${Stage}
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ModelName}-api-${Stage}
+      CodeUri: ../multi-model-endpoint
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Role: !GetAtt ApiFunctionRole.Arn
+      Environment:
+        Variables:
+          ENDPOINT_NAME: !GetAtt Endpoint.EndpointName
+          DEFAULT_ID: !Ref ModelId
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /models
+            Method: post
+            RestApiId:
+              Ref: Api
+    Description: "Api deployment that invokes SageMaker endpoint"
+
+  ApiFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Sid: AllowSageMaker
+                Effect: Allow
+                Action:
+                  - sagemaker:InvokeEndpoint
+                Resource: !Sub "arn:aws:sagemaker:*:*:endpoint/${ModelName}-${Stage}"
+            Version: "2012-10-17"
+          PolicyName: SageMakerInvokeEndpoint
