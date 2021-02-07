@@ -12,6 +12,9 @@ Parameters:
   MLOpsRoleArn:
     Type: String
     Description: The role for executing the deployment
+  ModelLocations:
+    Type: String
+    Description: Not required for stack, just for copying models to the correct location
   Stage:
     Default: dev
     Description: stage (corresponding to branch)
