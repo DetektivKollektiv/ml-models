@@ -80,7 +80,7 @@ Resources:
         Invoke:
           Type: Api
           Properties:
-            Path: /models
+            Path: /models/{model_name}
             Method: post
             RestApiId:
               Ref: Api
