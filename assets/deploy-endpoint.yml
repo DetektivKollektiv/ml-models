@@ -1,20 +1,29 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: "SAM template for the DetektivKollektiv ML model deployment" # Change for each template
+
 Description: Deploy a model at Sagemaker
 Parameters:
   ImageRepoUri:
     Type: String
     Description: Uri of the docker (ECR) model image
+    Default: "891514678401.dkr.ecr.eu-central-1.amazonaws.com/detektivkollektiv-ml-models:dev"
   ModelName:
     Type: String
     Description: Name of the model
+    Default: "detektivkollektiv-ml-models"
   ModelsPrefix:
     Type: String
     Description: Prefix of models
+    Default: dev
   MLOpsRoleArn:
     Type: String
     Description: The role for executing the deployment
+    Default: "arn:aws:iam::891514678401:role/detektivkollektiv-ml-models-deploy-role-dev"
   ModelLocations:
     Type: String
     Description: Not required for stack, just for copying models to the correct location
+    Default: '{"TopicalPageRank": "s3://sagemaker-eu-central-1-891514678401/TopicalPageRank/model/2ebdc638-4413-45c5-a0a1-156a05c7c8d9/output"}'
   Stage:
     Default: dev
     Description: stage (corresponding to branch)
@@ -22,6 +31,7 @@ Parameters:
   ModelId:
     Description: identifies default version of models
     Type: String
+    Default: "2ebdc638-4413-45c5-a0a1-156a05c7c8d9"
 
 Resources:
   Api:
@@ -71,7 +81,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${ModelName}-api-${Stage}
-      CodeUri: ../multi-model-endpoint
+      CodeUri: .
       Handler: app.lambda_handler
       Runtime: python3.8
       Role: !GetAtt ApiFunctionRole.Arn

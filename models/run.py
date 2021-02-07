@@ -44,7 +44,7 @@ def get_training_request(
         image_uri,
         role,
         train_instance_count=1,
-        train_instance_type="ml.m4.xlarge",
+        train_instance_type="ml.m5.2xlarge",
         base_job_name = model_name,
         output_path = model_uri+"/model",
         hyperparameters=params
