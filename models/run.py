@@ -59,7 +59,7 @@ def get_training_request(
     request = training_config(estimator, inputs=data, job_name=job_id)
     return json.dumps(request)
     
-def get_endpoint_params(model_name, role, image_uri, stage, training_requests):
+def get_endpoint_params(model_name, role, image_uri, stage, training_requests, job_id):
     model_location = {}
     for model in training_requests:
         request = json.loads(training_requests[model])
@@ -72,6 +72,7 @@ def get_endpoint_params(model_name, role, image_uri, stage, training_requests):
             "MLOpsRoleArn": role,
             "ModelLocations": model_location,
             "Stage": stage,
+            "ModelId": job_id
         }
     }
 
@@ -197,7 +198,7 @@ def main(
 
     # Write the dev & prod params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
-        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests)
+        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests, job_id)
         json.dump(params, f)
 
 
