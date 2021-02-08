@@ -44,7 +44,7 @@ def get_training_request(
         image_uri,
         role,
         train_instance_count=1,
-        train_instance_type="ml.c5.xlarge",
+        train_instance_type="t2.medium", # ml.c5.xlarge",
         base_job_name = model_name,
         output_path = model_uri+"/model",
         hyperparameters=params
@@ -70,7 +70,7 @@ def get_endpoint_params(model_name, role, image_uri, stage, training_requests, j
             "ModelName": model_name,
             "ModelsPrefix": stage,
             "MLOpsRoleArn": role,
-            "ModelLocations": model_location,
+            "ModelLocations": json.dumps(model_location),
             "Stage": stage,
             "ModelId": job_id
         }

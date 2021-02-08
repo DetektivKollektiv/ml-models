@@ -248,8 +248,8 @@ Resources:
                           deployment_str = deployment_binary.decode("UTF-8")
                           deploy_endpoint = json.loads(deployment_str)
 
-                          for model in deploy_endpoint["Parameters"]["ModelLocations"]:
-                              copySource = deploy_endpoint["Parameters"]["ModelLocations"][model] + '/' + "model.tar.gz"
+                          for model in json.loads(deploy_endpoint["Parameters"]["ModelLocations"]):
+                              copySource = json.loads(deploy_endpoint["Parameters"]["ModelLocations"])[model] + '/' + "model.tar.gz"
                               bucket, key = copySource.split('/',2)[-1].split('/',1)
                               s3.download_file(bucket, key, '/tmp/model.tar.gz')
                               with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
