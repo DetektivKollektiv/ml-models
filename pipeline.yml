@@ -396,6 +396,7 @@ Resources:
                 StackName: !Sub '${ModelName}-endpoint-${Stage}'
                 TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
                 TemplatePath: 'BuildOutput::deploy-endpoint.yml'
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND    
               RunOrder: 2
   S3Policy:
     Type: 'AWS::IAM::Policy'
