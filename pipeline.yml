@@ -395,7 +395,7 @@ Resources:
                 RoleArn: !GetAtt MLOpsRole.Arn
                 StackName: !Sub '${ModelName}-endpoint-${Stage}'
                 TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
-                TemplatePath: 'BuildOutput::deploy-endpoint.yml'
+                TemplatePath: 'BuildOutput::template-endpoint.yml'
                 Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND    
               RunOrder: 2
   S3Policy:

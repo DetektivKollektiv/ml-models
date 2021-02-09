@@ -11,6 +11,7 @@ import os
 import re
 import string
 
+import pandas as pd
 import numpy as np
 
 class ModelHandler(object):
@@ -139,6 +140,21 @@ class ModelHandler(object):
         elif self.model_type == "DocSim":
             stoplist = list(string.punctuation)
             stoplist += stopwords.words(language)
+            inference = []
+            for text_input in model_input:
+                similarities = []
+                for i, row in text_input.iterrows():
+                    # prepare first document
+                    tokens = gensim.utils.simple_preprocess(row.iloc[0])
+                    # Remove stop words
+                    words1 = [w for w in tokens if not w in stoplist and w in self.model.wv.vocab]
+                    # prepare first document
+                    tokens = gensim.utils.simple_preprocess(row.iloc[1])
+                    # Remove stop words
+                    words2 = [w for w in tokens if not w in stoplist and w in self.model.wv.vocab]
+                    similarities.append(self.model.wv.n_similarity(words1, words2))
+                inference.append(similarities)
+            return inference
         else:
             logging.error("Model {} not supported!".format(self.model_type))
             raise RuntimeError("Model {} not supported!".format(self.model_type))

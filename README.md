@@ -23,6 +23,11 @@ The artifacts comprise the files:
 TopicalPageRank-params.json
 TopicalPageRank-model
 
+### DocSim artifacts
+The artifacts comprise the files:
+DocSim-params.json
+DocSim-model
+
 # Training of models
 
 ## models_to_be_trained.json
