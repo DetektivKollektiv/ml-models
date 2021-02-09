@@ -3,11 +3,13 @@ ModelHandler defines a model handler for load and inference requests for factche
 """
 import pke
 from nltk.corpus import stopwords
+import gensim
 import glob
 import json
 import logging
 import os
 import re
+import string
 
 import numpy as np
 
@@ -69,7 +71,7 @@ class ModelHandler(object):
 
         # Load model
         try:
-            if self.model_type == "TopicalPageRank":
+            if self.model_type == "TopicalPageRank" or self.model_type == "DocSim":
                 self.model = os.path.join(model_dir, "{}-{}".format(checkpoint_prefix, "model")) # path to model
                 if not os.path.isfile(self.model):
                     raise RuntimeError("Missing {} file.".format(self.model))
@@ -88,7 +90,7 @@ class ModelHandler(object):
         :return: list of preprocessed model input data
         """
         # Take the input data and pre-process it make it inference ready
-        if self.model_type == "TopicalPageRank":
+        if self.model_type == "TopicalPageRank" or self.model_type == "DocSim":
             # Return the input text from the request
             text_list = []
             for idx, data in enumerate(request):
@@ -134,6 +136,9 @@ class ModelHandler(object):
                 keyphrases = extractor.get_n_best(n=max_count)
                 phrases_list.append(keyphrases)
             return phrases_list
+        elif self.model_type == "DocSim":
+            stoplist = list(string.punctuation)
+            stoplist += stopwords.words(language)
         else:
             logging.error("Model {} not supported!".format(self.model_type))
             raise RuntimeError("Model {} not supported!".format(self.model_type))
