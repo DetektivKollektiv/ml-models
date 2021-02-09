@@ -1,3 +1,4 @@
 {
-    "TopicalPageRank": true
+    "TopicalPageRank": false,
+    "DocSim": true
 }
