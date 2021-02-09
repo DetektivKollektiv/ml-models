@@ -1,6 +1,6 @@
 {
     "model_name": "DocSim",
-    "language": "de", 
+    "language": "german", 
     "vector_size": 40,
     "min_count": 2,
     "epochs": 100, 
