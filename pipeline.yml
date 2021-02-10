@@ -700,6 +700,7 @@ Resources:
                   - 'lambda:RemovePermission'
                   - 'lambda:UpdateFunctionCode'
                   - 'lambda:UpdateFunctionConfiguration'
+                  - 'lambda:GetFunctionConfiguration'
                   - 'sns:CreateTopic'
                   - 'sns:DeleteTopic'
                   - 'sns:GetTopicAttributes'
