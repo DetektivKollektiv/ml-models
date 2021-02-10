@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # required hyperparameters and other parameters
     parser.add_argument('--model_name', type=str)
     parser.add_argument('--language', type=str, default="de")
-    parser.add_argument('--vector_size', type=str, default=40)
+    parser.add_argument('--vector_size', type=int, default=40)
     parser.add_argument('--min_count', type=int, default=2)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--train_df', type=str, default="factchecks_de.csv")
