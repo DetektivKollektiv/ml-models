@@ -43,7 +43,7 @@ Resources:
   Model:
     Type: "AWS::SageMaker::Model"
     Properties:
-      ModelName: !Sub ${ModelName}-${Stage}
+      ModelName: !Sub ${ModelName}-${ModelId}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
         ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}/
