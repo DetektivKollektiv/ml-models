@@ -166,7 +166,7 @@ class ModelHandler(object):
         :return: list of predict results
         """
         # Take output from network and post-process to desired format
-        if self.model_type == "TopicalPageRank":
+        if self.model_type == "TopicalPageRank" or self.model_type == "DocSim":
             return inference_output
         else:
             logging.error("Model {} not supported!".format(self.model_type))

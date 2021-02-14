@@ -38,10 +38,7 @@ Resources:
     Properties:
       StageName:
         Ref: Stage
-      Auth:
-        DefaultAuthorizer: AWS_IAM
-        AddDefaultAuthorizerToCorsPreflight: false
-        InvokeRole: NONE
+      Name: !Sub ${ModelName}-api-${Stage}
 
   Model:
     Type: "AWS::SageMaker::Model"
@@ -49,7 +46,7 @@ Resources:
       ModelName: !Sub ${ModelName}-${Stage}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
-        ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}
+        ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}/
         Mode: MultiModel
       ExecutionRoleArn: !Ref MLOpsRoleArn
 
