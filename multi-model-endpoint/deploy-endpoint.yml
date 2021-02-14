@@ -59,7 +59,7 @@ Resources:
           InstanceType: ml.t2.medium
           ModelName: !GetAtt Model.ModelName
           VariantName: AllTraffic
-      EndpointConfigName: !Sub ${ModelName}-${Stage}
+      EndpointConfigName: !Sub ${ModelName}${ModelId}
       Tags:
         - Key: Name
           Value: !Sub ${ModelName}-${Stage}
@@ -67,7 +67,7 @@ Resources:
   Endpoint:
     Type: "AWS::SageMaker::Endpoint"
     Properties:
-      EndpointName: !Sub ${ModelName}-${Stage}
+      EndpointName: !Sub ${ModelName}${ModelId}
       EndpointConfigName: !GetAtt EndpointConfig.EndpointConfigName
       Tags:
         - Key: Name
