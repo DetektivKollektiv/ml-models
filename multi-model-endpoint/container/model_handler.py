@@ -146,7 +146,7 @@ class ModelHandler(object):
             return phrases_list
         elif self.model_type == "DocSim":
             stoplist = list(string.punctuation)
-            stoplist += stopwords.words(language)
+            stoplist += stopwords.words(self.model_params['language'])
             inference = []
             for text_input in model_input:
                 similarities = []
