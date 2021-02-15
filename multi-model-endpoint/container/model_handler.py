@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import string
+from io import StringIO
 
 import pandas as pd
 import numpy as np
@@ -34,13 +35,6 @@ class ModelHandler(object):
         """
         sym_file_suffix = "-params.json"
         checkpoint_prefix_regex = "{}/*{}".format(model_dir, sym_file_suffix) # Ex output: /opt/ml/models/resnet-18/model/*-symbol.json
-        logging.info("checkpoint_prefix_regex: {}".format(checkpoint_prefix_regex))        
-        test_regex = "/opt/ml/models/**"
-        list_files = glob.glob(test_regex, recursive=True)
-        logging.info("list_files: {}".format(list_files))
-        test2_regex = "/opt/ml/models/*/*/*.*"
-        list2_files = glob.glob(test2_regex, recursive=True)
-        logging.info("list2_files: {}".format(list2_files))
         checkpoint_prefix_filename = glob.glob(checkpoint_prefix_regex)[0] # Ex output: /opt/ml/models/resnet-18/model/resnet18-symbol.json
         checkpoint_prefix = os.path.basename(checkpoint_prefix_filename).split(sym_file_suffix)[0] # Ex output: resnet18
         logging.info("Prefix for the model artifacts: {}".format(checkpoint_prefix))
@@ -148,9 +142,13 @@ class ModelHandler(object):
             stoplist = list(string.punctuation)
             stoplist += stopwords.words(self.model_params['language'])
             inference = []
+            logging.info("model_input: {}".format(model_input))
             for text_input in model_input:
+                logging.info("text_input: {}".format(text_input))
+                df = pd.read_csv(StringIO(text_input))
                 similarities = []
-                for i, row in text_input.iterrows():
+                for i, row in df.iterrows():
+                    logging.info("{}. row: {}".format(i, row))
                     # prepare first document
                     tokens = gensim.utils.simple_preprocess(row.iloc[0])
                     # Remove stop words
