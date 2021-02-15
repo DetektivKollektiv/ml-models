@@ -256,9 +256,10 @@ Resources:
                                   z.extract(model+"-params.json", "/tmp")
                               with tarfile.open("/tmp/model.tar.gz") as tar:
                                   tar.extractall("/tmp")
-                              tar_name = "/tmp/" + model + "-" + deploy_endpoint["Parameters"]["ModelId"] + ".tar.gz"
+                              os.chdir('/tmp')
+                              tar_name = model + "-" + deploy_endpoint["Parameters"]["ModelId"] + ".tar.gz"
                               with tarfile.open(tar_name, "w:gz") as tar:
-                                  for name in ["/tmp/"+model+"-model", "/tmp/"+model+"-params.json"]: 
+                                  for name in [model+"-model", model+"-params.json"]: 
                                       tar.add(name)
                               destFileKey = 's3://' + deploy_endpoint["Parameters"]["ModelName"] + '/' + deploy_endpoint["Parameters"]["ModelsPrefix"] + '/' + model + '-' + deploy_endpoint["Parameters"]["ModelId"] + '.tar.gz'
                               destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
