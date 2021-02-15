@@ -222,6 +222,7 @@ Resources:
           import json
           import logging
           import tarfile
+          import os
           from botocore.client import ClientError
 
           logger = logging.getLogger()
