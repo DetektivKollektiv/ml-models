@@ -197,7 +197,6 @@ class ModelHandler(object):
         
         model_input = self.preprocess(data)
         model_out = self.inference(model_input)
-        logging.info("model_out: {}".format(model_out))
         return self.postprocess(model_out)
 
 _service = ModelHandler()
