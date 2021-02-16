@@ -11,6 +11,7 @@ import os
 import re
 import string
 from io import StringIO
+import pickle
 
 import pandas as pd
 import numpy as np
@@ -139,25 +140,29 @@ class ModelHandler(object):
                 phrases_list.append(keyphrases)
             return phrases_list
         elif self.model_type == "DocSim":
+            # load model
+            with open(self.model, 'rb') as inp:
+                model = pickle.load(inp)
             stoplist = list(string.punctuation)
             stoplist += stopwords.words(self.model_params['language'])
             inference = []
             logging.info("model_input: {}".format(model_input))
             for text_input in model_input:
                 logging.info("text_input: {}".format(text_input))
-                df = pd.read_csv(StringIO(text_input))
+                # read string into dataframe
+                df = pd.read_csv(StringIO(text_input), header=None)
                 similarities = []
                 for i, row in df.iterrows():
                     logging.info("{}. row: {}".format(i, row))
                     # prepare first document
                     tokens = gensim.utils.simple_preprocess(row.iloc[0])
                     # Remove stop words
-                    words1 = [w for w in tokens if not w in stoplist and w in self.model.wv.vocab]
+                    words1 = [w for w in tokens if not w in stoplist and w in model.wv.vocab]
                     # prepare first document
                     tokens = gensim.utils.simple_preprocess(row.iloc[1])
                     # Remove stop words
-                    words2 = [w for w in tokens if not w in stoplist and w in self.model.wv.vocab]
-                    similarities.append(self.model.wv.n_similarity(words1, words2))
+                    words2 = [w for w in tokens if not w in stoplist and w in model.wv.vocab]
+                    similarities.append(model.wv.n_similarity(words1, words2))
                 inference.append(similarities)
             return inference
         else:
