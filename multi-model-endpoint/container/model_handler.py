@@ -155,15 +155,21 @@ class ModelHandler(object):
                 for i, row in df.iterrows():
                     logging.info("{}. row: {}".format(i, row))
                     # prepare first document
+                    logging.info("row.iloc[0]: {}".format(row.iloc[0]))
                     tokens = gensim.utils.simple_preprocess(row.iloc[0])
                     # Remove stop words
                     words1 = [w for w in tokens if not w in stoplist and w in model.wv.vocab]
+                    logging.info("words1: {}".format(words1))
                     # prepare first document
+                    logging.info("row.iloc[1]: {}".format(row.iloc[1]))
                     tokens = gensim.utils.simple_preprocess(row.iloc[1])
                     # Remove stop words
                     words2 = [w for w in tokens if not w in stoplist and w in model.wv.vocab]
-                    similarities.append(model.wv.n_similarity(words1, words2))
+                    logging.info("words2: {}".format(words2))
+                    similarities.append(str(model.wv.n_similarity(words1, words2)))
+                    logging.info("similarities: {}".format(similarities))
                 inference.append(similarities)
+                logging.info("inference: {}".format(inference))
             return inference
         else:
             logging.error("Model {} not supported!".format(self.model_type))
@@ -191,6 +197,7 @@ class ModelHandler(object):
         
         model_input = self.preprocess(data)
         model_out = self.inference(model_input)
+        logging.info("model_out: {}".format(model_out))
         return self.postprocess(model_out)
 
 _service = ModelHandler()
