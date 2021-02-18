@@ -98,10 +98,13 @@ def get_pipeline_id(pipeline_name):
     response = codepipeline.get_pipeline_state(name=pipeline_name)
     return response["stageStates"][0]["latestExecution"]["pipelineExecutionId"]
 
+def get_trial_name(model_name, job_id):
+    return model_name+"-"+job_id
+
 def get_trial(model_name, job_id):
     return {
         "ExperimentName": model_name,
-        "TrialName": job_id,
+        "TrialName": get_trial_name(model_name, job_id),
     }
 
 def get_training_job_name(model_name, job_id):
@@ -189,7 +192,7 @@ def main(
         training_template +=    '           TrainingJobName: '+get_training_job_name(model, job_id)+'\n'
         training_template +=    '           TrainingJobRequest: \''+training_requests[model]+'\'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
-        training_template +=    '           TrialName: '+job_id+'\n\n'
+        training_template +=    '           TrialName: '+get_trial_name(model, job_id)+'\n\n'
 
     # Write experiment and trial configs
     with open(os.path.join(output_dir, "trials.json"), "w") as f:
