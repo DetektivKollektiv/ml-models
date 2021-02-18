@@ -185,7 +185,7 @@ def main(
             )
 
         # create Cloudformation template for training jobs
-        training_template +=    '   {}TrainingJob:\n'.format(model)
+        training_template +=    '   {}Job:\n'.format(model)
         training_template +=    '       Type: Custom::TrainingJob\n' \
                                 '       Properties:\n' \
                                 '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
