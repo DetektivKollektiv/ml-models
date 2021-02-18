@@ -56,14 +56,14 @@ def get_training_request(
     data = {"train": s3_input_train}
 
     # Get the training request
-    request = training_config(estimator, inputs=data, job_name=job_id)
+    request = training_config(estimator, inputs=data, job_name=model_name+job_id)
     return json.dumps(request)
     
 def get_endpoint_params(model_name, role, image_uri, stage, training_requests, job_id):
     model_location = {}
     for model in training_requests:
         request = json.loads(training_requests[model])
-        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+request["TrainingJobName"]+"/output"
+        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+job_id+"/output"
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
@@ -183,7 +183,7 @@ def main(
         training_template +=    '       Type: Custom::TrainingJob\n' \
                                 '       Properties:\n' \
                                 '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
-        training_template +=    '           TrainingJobName: '+job_id+'\n'
+        training_template +=    '           TrainingJobName: '+training_requests["TrainingJobName"]+'\n'
         training_template +=    '           TrainingJobRequest: \''+training_requests[model]+'\'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
         training_template +=    '           TrialName: '+job_id+'\n\n'
