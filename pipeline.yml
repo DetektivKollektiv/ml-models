@@ -126,9 +126,9 @@ Resources:
                           with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
                             with z.open('trials.json') as myfile:
                                 trials_binary = myfile.read()
+                          logger.info('trials_binary:', trials_binary)
                           trials_str = trials_binary.decode("UTF-8")
                           trials = json.loads(trials_str)
-
                   if trials is None:
                       logger.error("Experiment and Trail config not found")
                       raise(Exception("Experiment and Trail config not found"))
@@ -157,7 +157,6 @@ Resources:
                       try:
                           if not experiment_found:
                               response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
-                              logger.info('Experiment created.')
                       except Exception as e:
                           logger.error('error creating exp', e)
                       response = sm.search(
@@ -187,7 +186,6 @@ Resources:
                       try:
                           if not trial_found:
                               response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
-                              logger.info('Trial created.')
                       except Exception as e:
                           logger.error('error creating trial', e)
 
