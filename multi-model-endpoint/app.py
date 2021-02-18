@@ -30,7 +30,7 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "message": message}
 
     # Get target model and its id
-    target_model = event['pathParameters']['target_model']
+    target_model = event['pathParameters']['model_name']
     if target_model in os.environ:
         model_id = os.environ[target_model]
 
