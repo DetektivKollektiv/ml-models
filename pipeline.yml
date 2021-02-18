@@ -132,9 +132,9 @@ Resources:
                       logger.error("Experiment and Trail config not found")
                       raise(Exception("Experiment and Trail config not found"))
 
-                  logger.info('trials_str: %s', trials_str)
                   for model in trials:
                       trial = trials[model]
+                      logger.info('trial: {}'.format(trial))
                       response = sm.search(
                           Resource='Experiment',
                           SearchExpression={
@@ -158,7 +158,7 @@ Resources:
                           if not experiment_found:
                               response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
                       except Exception as e:
-                          logger.error('error creating exp %s', e)
+                          logger.error('Error {} creating experiment.'.format(e))
                       response = sm.search(
                           Resource='ExperimentTrial',
                           SearchExpression={
@@ -187,7 +187,7 @@ Resources:
                           if not trial_found:
                               response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
                       except Exception as e:
-                          logger.error('error creating trial %s', e)
+                          logger.error('Error {} creating trial.'.format(e))
 
                   # and update codepipeline
                   codepipeline.put_job_success_result(jobId=jobId)
