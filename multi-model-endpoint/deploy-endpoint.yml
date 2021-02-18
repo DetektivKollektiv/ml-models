@@ -86,7 +86,7 @@ Resources:
           ENDPOINT_NAME: !GetAtt Endpoint.EndpointName
           DEFAULT_ID: !Ref ModelId
       Events:
-        Invoke:
+        ApiEvent:
           Type: Api
           Properties:
             Path: /models/{model_name}
