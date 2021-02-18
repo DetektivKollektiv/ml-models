@@ -187,7 +187,7 @@ Resources:
                           if not trial_found:
                               response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
                       except Exception as e:
-                          logger.error('error creating trial %', e)
+                          logger.error('error creating trial %s', e)
 
                   # and update codepipeline
                   codepipeline.put_job_success_result(jobId=jobId)
