@@ -39,7 +39,9 @@ Resources:
       StageName:
         Ref: Stage
       Name: !Sub ${ModelName}-api-${Stage}
-
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+        
   Model:
     Type: "AWS::SageMaker::Model"
     Properties:
