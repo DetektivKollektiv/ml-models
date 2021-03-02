@@ -61,3 +61,15 @@ def lambda_handler(event, context):
         )
         logger.error(e)
         return {"statusCode": 500, "message": "Unexpected sagemaker error"}
+
+# update the ids of models in case a new model was trained
+def update_modelId(model, id):
+    model_id = os.environ["DEFAULT_ID"]
+    if model in os.environ:
+        model_id = os.environ[model]
+        logger.info("model {} has the current id {}.".format(model, model_id))
+    else:
+        logger.info("model {} has the default id {}".format(model, model_id))
+
+    os.environ[model] = id
+    logger.info("model {} has the new id {}.".format(model, id))
