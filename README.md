@@ -38,6 +38,7 @@ For training of the models access is required to the corresponding buckets, allo
 
 ## Models
 Supported models needs a training script train.py, inputData.json for specifying the location of training data and a json file specifying the parameters required for training and inference.
+Be aware that training of each model should not last more than one hour as otherwise the code pipeline would fail.
 Example of TopicalPageRank-params.json:
 {
     "model_name": "TopicalPageRank",

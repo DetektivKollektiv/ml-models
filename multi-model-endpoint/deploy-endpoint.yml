@@ -41,11 +41,12 @@ Resources:
       Name: !Sub ${ModelName}-api-${Stage}
       Auth:
         DefaultAuthorizer: AWS_IAM
+        InvokeRole: NONE
         
   Model:
     Type: "AWS::SageMaker::Model"
     Properties:
-      ModelName: !Sub ${ModelName}${ModelId}
+      ModelName: !Sub ${ModelName-${ModelId}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
         ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}/
@@ -61,7 +62,7 @@ Resources:
           InstanceType: ml.t2.medium
           ModelName: !GetAtt Model.ModelName
           VariantName: AllTraffic
-      EndpointConfigName: !Sub ${ModelName}${ModelId}
+      EndpointConfigName: !Sub ${ModelName}-${ModelId}
       Tags:
         - Key: Name
           Value: !Sub ${ModelName}-${Stage}
@@ -69,7 +70,7 @@ Resources:
   Endpoint:
     Type: "AWS::SageMaker::Endpoint"
     Properties:
-      EndpointName: !Sub ${ModelName}${ModelId}
+      EndpointName: !Sub ${ModelName}-${ModelId}
       EndpointConfigName: !GetAtt EndpointConfig.EndpointConfigName
       Tags:
         - Key: Name
@@ -86,6 +87,27 @@ Resources:
       Environment:
         Variables:
           ENDPOINT_NAME: !GetAtt Endpoint.EndpointName
+          DEFAULT_ID: !Ref ModelId
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /models/{model_name}
+            Method: post
+            RestApiId:
+              Ref: Api
+    Description: "Api deployment that invokes SageMaker endpoint"
+
+  UpdateModelFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ModelName}-update-model-${Stage}
+      CodeUri: .
+      Handler: app.update_modelId
+      Runtime: python3.8
+      Role: !GetAtt ApiFunctionRole.Arn
+      Environment:
+        Variables:
           DEFAULT_ID: !Ref ModelId
       Events:
         ApiEvent:
@@ -118,6 +140,6 @@ Resources:
                 Effect: Allow
                 Action:
                   - sagemaker:InvokeEndpoint
-                Resource: !Sub "arn:aws:sagemaker:*:*:endpoint/${ModelName}${ModelId}"
+                Resource: !Sub "arn:aws:sagemaker:*:*:endpoint/${ModelName}-${ModelId}"
             Version: "2012-10-17"
-          PolicyName: SageMakerInvokeEndpoint
+          PolicyName: !Sub ${ModelName}-InvokeSageMakerEndpoint-${Stage}

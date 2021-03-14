@@ -86,10 +86,10 @@ Resources:
         Type: CODEPIPELINE
         BuildSpec: ./buildspec.yml
       TimeoutInMinutes: 30
-  CreateExperiment:
+  CreateSMexperiment:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: !Sub '${ModelName}-create-experiment-${Stage}'
+      FunctionName: !Sub '${ModelName}-create-sm-experiment-${Stage}'
       Handler: index.lambda_handler
       MemorySize: 512
       Role: !GetAtt SageMakerRole.Arn
@@ -98,24 +98,118 @@ Resources:
       Code:
         ZipFile: |
           import boto3
+          import json
+          import logging
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          sm = boto3.client('sagemaker')
+
+          def lambda_handler(event, context):
+              logger.info('Calling CreateSMExperiment with event')
+              logger.info(event)
+              if "trials" in event:
+                  trials = event["trials"]
+                  os.environ["TRIALS"] = trials
+                  trial_id = trials["TrialID"]
+              elif "trial_id" in event:
+                  trials = os.environ["TRIALS"]
+                  trial_id = event["trial_id"]
+
+              for experiment_name in trials["Models"]:
+                  trial_name = experiment_name+'-'+trial_id
+                  response = sm.search(
+                      Resource='Experiment',
+                      SearchExpression={
+                          'Filters': [
+                              {
+                                  'Name': 'ExperimentName',
+                                  'Operator': 'Equals',
+                                  'Value': model
+                              }
+                          ]
+                      }
+                  )
+                  experiment_found = False
+                  results = response['Results']
+                  if len(results)>0:
+                      if 'Experiment' in results[0]:
+                          if 'ExperimentName' in results[0]['Experiment']:
+                              if results[0]['Experiment']['ExperimentName'] == experiment_name:
+                                  experiment_found = True
+                  try:
+                      if not experiment_found:
+                          response = sm.create_experiment(ExperimentName=experiment_name)
+                  except Exception as e:
+                      logger.error('Error {} creating experiment.'.format(e))
+                  response = sm.search(
+                      Resource='ExperimentTrial',
+                      SearchExpression={
+                          'Filters': [
+                              {
+                                  'Name': 'ExperimentName',
+                                  'Operator': 'Equals',
+                                  'Value': experiment_name
+                              },
+                              {
+                                  'Name': 'TrialName',
+                                  'Operator': 'Equals',
+                                  'Value': trial_name
+                              }
+                          ]
+                      }
+                  )
+                  trial_found = False
+                  results = response['Results']
+                  if len(results)>0:
+                      if 'Trial' in results[0]:
+                          if 'TrialName' in results[0]['Trial']:
+                              if results[0]['Trial']['TrialName'] == trial_name:
+                                  trial_found = True
+                  try:
+                      if not trial_found:
+                          response = sm.create_trial(ExperimentName=experiment_name, TrialName=trial_name)
+                  except Exception as e:
+                      logger.error('Error {} creating trial.'.format(e))
+
+              return 'Done'
+      Description: Function that creates experiments and trials in sagemaker
+  CreateExperiment:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ModelName}-create-experiment-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt SageMakerRole.Arn
+      Runtime: python3.8
+      Environment:
+        Variables:
+          FNNAME:
+            Ref: CreateSMexperiment
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
           import io
           import zipfile
           import json
           import logging
+          import os
 
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
 
           s3 = boto3.client('s3')
-          sm = boto3.client('sagemaker')
+          lb = boto3.client('lambda')
+
           codepipeline = boto3.client('codepipeline')
 
           def lambda_handler(event, context):
               logger.info('Calling CreateExperiment with event')
               logger.info(event)
               jobId = event["CodePipeline.job"]["id"]
-              experiment = None
-              trial = None
 
               try:
                   for inputArtifacts in event["CodePipeline.job"]["data"]["inputArtifacts"]:
@@ -129,65 +223,13 @@ Resources:
                           trials_str = trials_binary.decode("UTF-8")
                           trials = json.loads(trials_str)
                   if trials is None:
-                      logger.error("Experiment and Trail config not found")
-                      raise(Exception("Experiment and Trail config not found"))
+                      logger.error("Experiment and Trial config not found")
+                      raise(Exception("Experiment and Trial config not found"))
 
-                  for model in trials:
-                      trial = trials[model]
-                      logger.info('trial: {}'.format(trial))
-                      response = sm.search(
-                          Resource='Experiment',
-                          SearchExpression={
-                              'Filters': [
-                                  {
-                                      'Name': 'ExperimentName',
-                                      'Operator': 'Equals',
-                                      'Value': trial["ExperimentName"]
-                                  }
-                              ]
-                          }
-                      )
-                      experiment_found = False
-                      results = response['Results']
-                      if len(results)>0:
-                          if 'Experiment' in results[0]:
-                              if 'ExperimentName' in results[0]['Experiment']:
-                                  if results[0]['Experiment']['ExperimentName'] == trial["ExperimentName"]:
-                                      experiment_found = True
-                      try:
-                          if not experiment_found:
-                              response = sm.create_experiment(ExperimentName=trial["ExperimentName"])
-                      except Exception as e:
-                          logger.error('Error {} creating experiment.'.format(e))
-                      response = sm.search(
-                          Resource='ExperimentTrial',
-                          SearchExpression={
-                              'Filters': [
-                                  {
-                                      'Name': 'ExperimentName',
-                                      'Operator': 'Equals',
-                                      'Value': trial["ExperimentName"]
-                                  },
-                                  {
-                                      'Name': 'TrialName',
-                                      'Operator': 'Equals',
-                                      'Value': trial["TrialName"]
-                                  }
-                              ]
-                          }
-                      )
-                      trial_found = False
-                      results = response['Results']
-                      if len(results)>0:
-                          if 'Trial' in results[0]:
-                              if 'TrialName' in results[0]['Trial']:
-                                  if results[0]['Trial']['TrialName'] == trial["TrialName"]:
-                                      trial_found = True
-                      try:
-                          if not trial_found:
-                              response = sm.create_trial(ExperimentName=trial["ExperimentName"], TrialName=trial["TrialName"])
-                      except Exception as e:
-                          logger.error('Error {} creating trial.'.format(e))
+                  response = lb.invoke(
+                      FunctionName = os.environ['FNNAME'],
+                      Payload=trials_binary,
+                  )
 
                   # and update codepipeline
                   codepipeline.put_job_success_result(jobId=jobId)
@@ -202,7 +244,65 @@ Resources:
                       }
                   )
               return 'Done'
-      Description: Function that creates an experiment and trial
+      Description: Function is called by codepipeline and creates an experiment and trial 
+  DeployNewModels:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ModelName}-deploy-new-models-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt SageMakerRole.Arn
+      Runtime: python3.8
+      Environment:
+        Variables:
+          MODEL_NAME:
+            Ref: ModelName
+      Timeout: 60
+      Events:
+        DeployModelEvent:
+          Type: S3
+          Properties:
+            Bucket: !Ref SrcBucket
+            Events: s3:ObjectCreated:*
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+          from urllib.parse import unquote_plus
+
+          s3_client = boto3.client('s3')
+
+          def lambda_handler(event, context):
+              for record in event['Records']:
+                  bucket = record['s3']['bucket']['name']
+                  key = unquote_plus(record['s3']['object']['key'])
+                  # download new model
+                  download_path = '/tmp'
+                  s3_client.download_file(bucket, key, download_path)
+                  stage, model, model_id, remaining = key.split('/',3)
+                  # download params-file
+                  s3_client.download_file(bucket, stage+'/'+model+'/'+model_id+'/params/'+model+'-params.json', download_path)
+                  # tar model and params for upload
+                  with tarfile.open(download_path+"model.tar.gz") as tar:
+                      tar.extractall(download_path)
+                      os.chdir(downloadpath)
+                      tar_name = model + "-" + model_id + ".tar.gz"
+                      with tarfile.open(tar_name, "w:gz") as tar:
+                          for name in [model+"-model", model+"-params.json"]: 
+                              tar.add(name)
+                      destFileKey = 's3://' + os.environ["MODEL_NAME"] + '/' + stage + '/' + model + '-' + model_id + '.tar.gz'
+                      destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
+                      s3_client.upload_file(tar_name, destbucket, destkey)
+                  # update model id in Endpoint
+                  event = {}
+                  event["model"] = model
+                  event["id"] = model_id
+                  response = lb.invoke(
+                      FunctionName = os.environ["MODEL_NAME"]+"-update-model-"+stage,
+                      Payload=json.dumps(event).encode()
+                  )
+                  
   DeployModels:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -246,13 +346,16 @@ Resources:
                                   deployment_binary = myfile.read()
                           deployment_str = deployment_binary.decode("UTF-8")
                           deploy_endpoint = json.loads(deployment_str)
-
-                          for model in json.loads(deploy_endpoint["Parameters"]["ModelLocations"]):
-                              copySource = json.loads(deploy_endpoint["Parameters"]["ModelLocations"])[model] + '/' + "model.tar.gz"
-                              bucket, key = copySource.split('/',2)[-1].split('/',1)
-                              s3.download_file(bucket, key, '/tmp/model.tar.gz')
+                          model_locations = json.loads(deploy_endpoint["Parameters"]["ModelLocations"])
+                          # store model params
+                          for model in model_locations:
                               with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
                                   z.extract(model+"-params.json", "/tmp")
+
+                          for model in model_locations:
+                              copySource = model_locations[model] + '/' + "model.tar.gz"
+                              bucket, key = copySource.split('/',2)[-1].split('/',1)
+                              s3.download_file(bucket, key, '/tmp/model.tar.gz')
                               with tarfile.open("/tmp/model.tar.gz") as tar:
                                   tar.extractall("/tmp")
                               os.chdir('/tmp')
@@ -338,6 +441,7 @@ Resources:
                 RoleArn: !GetAtt MLOpsRole.Arn
                 Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
                 StackName: !Sub 'sagemaker-custom-resource-${Stage}'
+                TemplateConfiguration: 'BuildOutput::template-custom-resource.json'
                 TemplatePath: 'BuildOutput::template-custom-resource.yml'
               RunOrder: 2
         - Name: Train
@@ -370,18 +474,6 @@ Resources:
               RunOrder: 2
         - Name: Deploy
           Actions:
-            - Name: DeployModels
-              InputArtifacts:
-                - Name: BuildOutput
-              ActionTypeId:
-                Category: Invoke
-                Owner: AWS
-                Version: '1'
-                Provider: Lambda
-              Configuration:
-                FunctionName: !Ref DeployModels
-                UserParameters: !Sub 'mlops-pipeline-${ModelName}'
-              RunOrder: 1
             - Name: DeployEndpoint
               InputArtifacts:
                 - Name: BuildOutput
@@ -397,7 +489,7 @@ Resources:
                 TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
                 TemplatePath: 'BuildOutput::template-endpoint.yml'
                 Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND    
-              RunOrder: 2
+              RunOrder: 1
   S3Policy:
     Type: 'AWS::IAM::Policy'
     Properties:
@@ -448,7 +540,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: mlops-cwe-pipeline-execution
+        - PolicyName: !Sub '${ModelName}-mlops-cwe-pipeline-execution-${Stage}'
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -484,7 +576,7 @@ Resources:
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/CloudWatchSyntheticsFullAccess'
       Policies:
-        - PolicyName: mlops-sagemaker-policy
+        - PolicyName: !Sub '${ModelName}-mlops-sagemaker-policy-${Stage}'
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -586,7 +678,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: mlops-pipeline
+        - PolicyName: !Sub '${ModelName}-mlops-pipeline-${Stage}'
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -631,7 +723,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: mlops-deploy
+        - PolicyName: !Sub '${ModelName}-mlops-deploy-${Stage}'
           PolicyDocument:
             Version: 2012-10-17
             Statement:
