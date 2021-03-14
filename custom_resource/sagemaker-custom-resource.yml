@@ -43,7 +43,7 @@ Resources:
         Schedule:
           Type: Schedule
           Properties:
-            Name: !Sub "${ModelName}-rules-retrain_models-${STAGE}"
+            Name: !Sub "${ModelName}-rules-retrain_models-${Stage}"
             Description: retrains ml models every week
             Enabled: True
             Schedule: rate(1 week)
