@@ -1,4 +1,4 @@
-Description: Multi model deployment
+Description: Pipeline for Multi model deployment
 Metadata:
   'AWS::CloudFormation::Interface':
     ParameterGroups:
@@ -258,12 +258,6 @@ Resources:
           MODEL_NAME:
             Ref: ModelName
       Timeout: 60
-      Events:
-        DeployModelEvent:
-          Type: S3
-          Properties:
-            Bucket: !Ref SrcBucket
-            Events: s3:ObjectCreated:*
       Code:
         ZipFile: |
           import boto3
@@ -302,7 +296,37 @@ Resources:
                       FunctionName = os.environ["MODEL_NAME"]+"-update-model-"+stage,
                       Payload=json.dumps(event).encode()
                   )
-                  
+  DeployModelEvent:
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: Event when new models are stored in bucket
+      EventPattern: 
+        source: 
+          - "aws.s3"
+        detail: 
+          eventName: 
+            - "PutObject"
+          requestParameters:
+            bucketName: 
+              - "sagemaker-eu-central-1-891514678401"
+      Name: !Sub '${ModelName}-new-model-event-${Stage}'
+      Targets: 
+        - Arn: 
+            Fn::GetAtt: 
+              - "DeployNewModels"
+              - "Arn"
+          Id: "DeployNewModelsTarget"
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "DeployNewModels"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "DeployModelEvent"
+          - "Arn"
   DeployModels:
     Type: 'AWS::Lambda::Function'
     Properties:
