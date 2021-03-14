@@ -107,10 +107,12 @@ def get_training_job_name(model_name, model_id):
 
 def get_custom_resource_params(model_name, stage):
     return {
-        "ModelName": model_name,
-        "Stage": stage,
-        "TrainingJobStackName": model_name+"-training-job-"+stage,
-        "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage
+        "Parameters": {
+            "ModelName": model_name,
+            "Stage": stage,
+            "TrainingJobStackName": model_name+"-training-job-"+stage,
+            "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage
+        }
     }
 
 def main(
@@ -198,7 +200,7 @@ def main(
         # Upload params-file
         params_location = sagemaker_session.upload_data(params_file, bucket, stage + '/' + model + '/params')
         print("Parameter-file uploaded to {}".format(params_location))
-        
+
         # create Cloudformation template for training jobs
         training_template +=    '   {}Job:\n'.format(model)
         training_template +=    '       Type: Custom::TrainingJob\n' \
