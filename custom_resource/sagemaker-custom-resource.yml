@@ -1,20 +1,63 @@
 Description: Template for sagemaker cloud formation custom resources
 Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ModelName:
+    Type: String
+    Description: Name of the model
+    Default: "detektivkollektiv-ml-models"
+  Stage:
+    Default: dev
+    Description: stage (corresponding to branch)
+    Type: String
+  TrainingJobStackName:
+    Default: "detektivkollektiv-ml-models-training-job-dev"
+    Description: stack with training jobs
+    Type: String
+  SMexperimentLambda:
+    Default: "detektivkollektiv-ml-models-create-sm-experiment-dev"
+    Description: lambda for creating experiments and trials
+    Type: String
+
 Resources:
   TrainingJobFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: sagemaker-cfn-training-job
+      FunctionName: !Sub '${ModelName}-cfn-training-job-${Stage}'
       CodeUri: .
       Handler: sagemaker_training_job.lambda_handler
       Runtime: python3.8
       Role: !GetAtt SagemakerCustomResourceRole.Arn
       Description: "Creates a SageMaker Training Job for a given request"
 
+  ReTrainingJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ModelName}-cfn-re-training-job-${Stage}'
+      CodeUri: .
+      Handler: sagemaker_re-training_job.lambda_handler
+      Runtime: python3.8
+      Role: !GetAtt SagemakerCustomResourceRole.Arn
+      Description: "Creates a SageMaker Re-Training Job for a given request"
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Name: !Sub "${ModelName}-rules-retrain_models-${STAGE}"
+            Description: retrains ml models every week
+            Enabled: True
+            Schedule: rate(1 week)
+      Environment:
+        Variables:
+          STACK_NAME:
+            Ref: TrainingJobStackName
+          LAMBDA_NAME:
+            Ref: SMexperimentLambda
+
   SagemakerCustomResourceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: sagemaker-cfn-custom-resource
+      RoleName: !Sub '${ModelName}-cfn-custom-resource-${Stage}'
       AssumeRolePolicyDocument:
         Statement:
           - Action:
@@ -67,4 +110,4 @@ Resources:
                   StringEquals:
                     iam:PassedToService: sagemaker.amazonaws.com
             Version: "2012-10-17"
-          PolicyName: SagemakerCustomResource
+          PolicyName: !Sub '${ModelName}-CustomResource-${Stage}'

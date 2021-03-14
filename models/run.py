@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 import sys
-import time
+from datetime import datetime
 import tarfile
 import shutil 
 
@@ -26,13 +26,14 @@ def json_encode_hyperparameters(hyperparameters):
 
 def get_training_request(
     model_name,
-    job_id,
+    model_id,
+    stage,
     role,
     image_uri,
     training_uri,
     hyperparameters,
 ):
-    model_uri = "s3://{0}/{1}".format(bucket, model_name)
+    model_uri = "s3://{0}/{1}/{2}".format(bucket, stage, model_name)
 
     # include location of tarfile and name of training script
     hyperparameters["sagemaker_program"] = "train.py"
@@ -56,14 +57,14 @@ def get_training_request(
     data = {"train": s3_input_train}
 
     # Get the training request
-    request = training_config(estimator, inputs=data, job_name=get_training_job_name(model_name, job_id))
+    request = training_config(estimator, inputs=data, job_name=get_training_job_name(model_name, model_id))
     return json.dumps(request)
     
-def get_endpoint_params(model_name, role, image_uri, stage, training_requests, job_id):
+def get_endpoint_params(model_name, role, image_uri, stage, training_requests, model_id):
     model_location = {}
     for model in training_requests:
         request = json.loads(training_requests[model])
-        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+get_training_job_name(model, job_id)+"/output"
+        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+get_training_job_name(model, model_id)+"/output"
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
@@ -72,9 +73,12 @@ def get_endpoint_params(model_name, role, image_uri, stage, training_requests, j
             "MLOpsRoleArn": role,
             "ModelLocations": json.dumps(model_location),
             "Stage": stage,
-            "ModelId": job_id
+            "ModelId": model_id
         }
     }
+
+def get_trial_name(model_name, job_id):
+    return model_name+"-"+job_id
 
 def get_models():
     with open("models/models_to_be_trained.json", "r") as f:
@@ -98,17 +102,16 @@ def get_pipeline_id(pipeline_name):
     response = codepipeline.get_pipeline_state(name=pipeline_name)
     return response["stageStates"][0]["latestExecution"]["pipelineExecutionId"]
 
-def get_trial_name(model_name, job_id):
-    return model_name+"-"+job_id
+def get_training_job_name(model_name, model_id):
+    return model_name+"-"+model_id
 
-def get_trial(model_name, job_id):
+def get_custom_resource_params(model_name, stage):
     return {
-        "ExperimentName": model_name,
-        "TrialName": get_trial_name(model_name, job_id),
+        "ModelName": model_name,
+        "Stage": stage,
+        "TrainingJobStackName": model_name+"-training-job-"+stage,
+        "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage
     }
-
-def get_training_job_name(model_name, job_id):
-    return model_name+job_id
 
 def main(
     pipeline_name,
@@ -137,15 +140,23 @@ def main(
     models = get_models()
 
     # Create trials for all models
-    trials = {}
+    experiments = []
 
     # Create training requests for all models
     training_requests = {}
 
+    # use the current datetime as identifier for new models
+    model_id = str(datetime.now())
     # Write training job template
     training_template = "Description: Create training jobs\n" \
                         "\n" \
+                        "Parameters:\n" \
+                        "  ModelId:\n" \
+                        "    Type: String\n" \
+                        "    Description: model id used as suffix for training jobs\n" \
+                        "    Default: "+model_id+"\n" \
                         "Resources:\n"
+    model_id_sub = "${ModelId}"
 
     for model in models:
         model_dir = os.path.join("models", model)
@@ -159,7 +170,7 @@ def main(
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
             # upload tar file to S3
-            sources = sagemaker_session.upload_data(tar_file, bucket, model + '/code')
+            sources = sagemaker_session.upload_data(tar_file, bucket, stage + '/' + model + '/code')
             print(sources)
             # delete tar file after uploading
             try:
@@ -168,7 +179,7 @@ def main(
                 pass
 
         # Configure experiments and trials
-        trials[model] = get_trial(model, job_id)
+        experiments.append(model)
 
         # Configure training requests
         params_file = os.path.join(model_dir, model+"-params.json")
@@ -177,24 +188,31 @@ def main(
             hyperparameters = json.load(f)
         training_requests[model] = get_training_request(
                 model,
-                job_id,
+                model_id_sub,
+                stage,
                 role,
                 training_image_uri,
                 training_uri,
                 hyperparameters,
             )
-
+        # Upload params-file
+        params_location = sagemaker_session.upload_data(params_file, bucket, stage + '/' + model + '/params')
+        print("Parameter-file uploaded to {}".format(params_location))
+        
         # create Cloudformation template for training jobs
         training_template +=    '   {}Job:\n'.format(model)
         training_template +=    '       Type: Custom::TrainingJob\n' \
                                 '       Properties:\n' \
                                 '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
-        training_template +=    '           TrainingJobName: '+get_training_job_name(model, job_id)+'\n'
-        training_template +=    '           TrainingJobRequest: \''+training_requests[model]+'\'\n'
+        training_template +=    '           TrainingJobName: !Sub '+get_training_job_name(model, model_id_sub)+'\n'
+        training_template +=    '           TrainingJobRequest: !Sub \''+training_requests[model]+'\'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
-        training_template +=    '           TrialName: '+get_trial_name(model, job_id)+'\n\n'
+        training_template +=    '           TrialName: !Sub '+get_trial_name(model, model_id_sub)+'\n\n'
 
     # Write experiment and trial configs
+    trials = {}
+    trials["Models"] = experiments
+    trials["TrialID"] = model_id
     with open(os.path.join(output_dir, "trials.json"), "w") as f:
         json.dump(trials, f)
 
@@ -202,11 +220,15 @@ def main(
     with open(os.path.join(output_dir, "training-job.yml"), "w") as f:
         f.write(training_template)
 
-    # Write the dev & prod params for CFN
-    with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
-        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests, job_id)
+    # Write the dev & prod params for template-custom-resource.yml
+    with open(os.path.join(output_dir, "template-custom-resource.json"), "w") as f:
+        params = get_custom_resource_params(model_name, stage)
         json.dump(params, f)
 
+    # Write the dev & prod params for CFN
+    with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
+        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests, model_id)
+        json.dump(params, f)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Load parameters")
