@@ -19,6 +19,9 @@ def lambda_handler(event, context):
 
     # use the current datetime as suffix for the trainingjobs
     model_id = str(datetime.now())
+    model_id = model_id.replace(":", "")
+    model_id = model_id.replace(".", "")
+    model_id = model_id.replace(" ", "-")
     payload_dict = {"trial_id": model_id}
     payload_str = json.dumps(payload_dict)
 

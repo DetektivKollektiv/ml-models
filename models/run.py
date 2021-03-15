@@ -149,6 +149,9 @@ def main(
 
     # use the current datetime as identifier for new models
     model_id = str(datetime.now())
+    model_id = model_id.replace(":", "")
+    model_id = model_id.replace(".", "")
+    model_id = model_id.replace(" ", "-")
     # Write training job template
     training_template = "Description: Create training jobs\n" \
                         "\n" \
