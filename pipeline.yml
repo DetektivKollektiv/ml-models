@@ -464,7 +464,7 @@ Resources:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt MLOpsRole.Arn
                 Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
-                StackName: !Sub 'sagemaker-custom-resource-${Stage}'
+                StackName: !Sub '${ModelName}-custom-resource-${Stage}'
                 TemplateConfiguration: 'BuildOutput::template-custom-resource.json'
                 TemplatePath: 'BuildOutput::template-custom-resource.yml'
               RunOrder: 2
