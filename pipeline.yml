@@ -624,6 +624,7 @@ Resources:
                   - 'sagemaker:InvokeEndpoint'
                   - 'sagemaker:ListMonitoringExecutions'
                   - 'sagemaker:Search'
+                  - 'lambda:InvokeFunction'
                 Resource: '*'
               - Sid: AllowCodePipeline
                 Effect: Allow
