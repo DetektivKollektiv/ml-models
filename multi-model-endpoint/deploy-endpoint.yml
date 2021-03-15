@@ -99,7 +99,7 @@ Resources:
     Description: "Api deployment that invokes SageMaker endpoint"
 
   UpdateModelFunction:
-    Type: AWS::Lambda::Function
+    Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${ModelName}-update-model-${Stage}
       CodeUri: .
@@ -109,15 +109,7 @@ Resources:
       Environment:
         Variables:
           DEFAULT_ID: !Ref ModelId
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /models/{model_name}
-            Method: post
-            RestApiId:
-              Ref: Api
-    Description: "Api deployment that invokes SageMaker endpoint"
+    Description: "updates IDs of models to be used via the SageMaker endpoint"
 
   ApiFunctionRole:
     Type: AWS::IAM::Role
