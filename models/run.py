@@ -205,7 +205,7 @@ def main(
         training_template +=    '   {}Job:\n'.format(model)
         training_template +=    '       Type: Custom::TrainingJob\n' \
                                 '       Properties:\n' \
-                                '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sagemaker-cfn-training-job"\n'
+                                '           ServiceToken: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:'+model_name+'-cfn-training-job-'+stage+'"\n'
         training_template +=    '           TrainingJobName: !Sub '+get_training_job_name(model, model_id_sub)+'\n'
         training_template +=    '           TrainingJobRequest: !Sub \''+training_requests[model]+'\'\n'
         training_template +=    '           ExperimentName: {}'.format(model)+'\n'
