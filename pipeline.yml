@@ -861,3 +861,16 @@ Resources:
                 Action:
                   - 'ecr:GetAuthorizationToken'
                 Resource: '*'
+              - Sid: Events
+                Effect: Allow
+                Action:
+                  - 'events:DeleteRule'
+                  - 'events:DescribeRule'
+                  - 'events:ListRuleNamesByTarget'
+                  - 'events:ListRules'
+                  - 'events:ListTargetsByRule'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:RemoveTargets'
+                Resource: '*'
+
