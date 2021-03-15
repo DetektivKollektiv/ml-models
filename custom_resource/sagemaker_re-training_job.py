@@ -13,6 +13,7 @@ lb = boto3.client('lambda')
 
 # update stack with training jobs to start retraining of models
 def lambda_handler(event, context):
+    logger.debug("Creating re-training job.")
     logger.debug("event %s", json.dumps(event))
     stack_name = os.environ["STACK_NAME"]
     logger.info("update training stack %s", stack_name)
