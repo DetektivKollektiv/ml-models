@@ -110,15 +110,15 @@ Resources:
           def lambda_handler(event, context):
               logger.info('Calling CreateSMExperiment with event')
               logger.info(event)
-              if "trials" in event:
-                  trials = event["trials"]
-                  os.environ["TRIALS"] = trials
-                  trial_id = trials["TrialID"]
+              if "Models" in event:
+                  models = event["Models"]
+                  os.environ["MODELS"] = json.dumps(event)
+                  trial_id = event["TrialID"]
               elif "trial_id" in event:
-                  trials = os.environ["TRIALS"]
+                  models = json.loads(os.environ["MODELS"])["Models"]
                   trial_id = event["trial_id"]
 
-              for experiment_name in trials["Models"]:
+              for experiment_name in models:
                   trial_name = experiment_name+'-'+trial_id
                   response = sm.search(
                       Resource='Experiment',
@@ -127,7 +127,7 @@ Resources:
                               {
                                   'Name': 'ExperimentName',
                                   'Operator': 'Equals',
-                                  'Value': model
+                                  'Value': experiment_name
                               }
                           ]
                       }
