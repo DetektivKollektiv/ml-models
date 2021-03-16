@@ -296,6 +296,7 @@ Resources:
                       FunctionName = os.environ["MODEL_NAME"]+"-update-model-"+stage,
                       Payload=json.dumps(event).encode()
                   )
+      Description: Function that deploys trained models to the multi model bucket
   DeployModelEvent:
     Type: AWS::Events::Rule
     Properties: 
