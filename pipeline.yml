@@ -409,7 +409,7 @@ Resources:
                       }
                   )
               return 'Done'
-      Description: Function that deploys trained model to the multi model bucket
+      Description: Function to be deleted
   DeployPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
