@@ -111,7 +111,8 @@ def get_custom_resource_params(model_name, stage):
             "ModelName": model_name,
             "Stage": stage,
             "TrainingJobStackName": model_name+"-training-job-"+stage,
-            "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage
+            "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage,
+            "TrainingBucket": bucket
         }
     }
 

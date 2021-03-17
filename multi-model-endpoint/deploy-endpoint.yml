@@ -40,7 +40,7 @@ Resources:
         Ref: Stage
       Name: !Sub ${ModelName}-api-${Stage}
       Domain: 
-        DomainName: api.dev.detektivkollektiv.org
+        DomainName: !Sub api.${Stage}.detektivkollektiv.org
         CertificateArn: arn:aws:acm:us-east-1:891514678401:certificate/e4684486-f66e-4273-8dfb-550878f85854
         BasePath:
           - /ml_model_service
