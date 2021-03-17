@@ -33,6 +33,8 @@ Parameters:
     Default: "2ebdc638-4413-45c5-a0a1-156a05c7c8d9"
 
 Resources:
+  ProdCondition:
+    !Equals [!Ref Stage, prod]
   Api:
     Type: AWS::Serverless::Api
     Properties:
@@ -40,7 +42,7 @@ Resources:
         Ref: Stage
       Name: !Sub ${ModelName}-api-${Stage}
       Domain: 
-        DomainName: !Sub api.${Stage}.detektivkollektiv.org
+        DomainName: Fn::If [ProdCondition, api.detektivkollektiv.org, !Sub api.${Stage}.detektivkollektiv.org]
         CertificateArn: arn:aws:acm:us-east-1:891514678401:certificate/e4684486-f66e-4273-8dfb-550878f85854
         BasePath:
           - /ml_model_service

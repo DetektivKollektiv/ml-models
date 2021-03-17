@@ -327,7 +327,8 @@ Resources:
         detail: 
           eventName: ["PutObject", "CopyObject", "UploadPart", "UploadPartCopy"]
           requestParameters:
-            bucketName: !Sub ${TrainingBucket}
+            bucketName: 
+              - !Sub ${TrainingBucket}
       Name: !Sub '${ModelName}-new-model-event-${Stage}'
       Targets: 
         - Arn: !GetAtt DeployNewModels.Arn
