@@ -407,7 +407,6 @@ Resources:
                   if deploy_endpoint is None:
                       logger.error("deploy-endpoint.json not found")
                       raise(Exception("deploy-endpoint.json not found"))
-
                   # and update codepipeline
                   codepipeline.put_job_success_result(jobId=jobId)
               except Exception as e:
