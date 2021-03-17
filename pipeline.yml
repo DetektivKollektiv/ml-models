@@ -403,7 +403,6 @@ Resources:
                               destFileKey = 's3://' + deploy_endpoint["Parameters"]["ModelName"] + '/' + deploy_endpoint["Parameters"]["ModelsPrefix"] + '/' + model + '-' + deploy_endpoint["Parameters"]["ModelId"] + '.tar.gz'
                               destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
                               s3.upload_file(tar_name, destbucket, destkey)
-
                   if deploy_endpoint is None:
                       logger.error("deploy-endpoint.json not found")
                       raise(Exception("deploy-endpoint.json not found"))
