@@ -6,6 +6,7 @@ Metadata:
           default: Required Parameters
         Parameters:
           - ModelName
+          - Stage
       - Label:
           default: Optional GitHub Parameters
         Parameters:
@@ -13,6 +14,7 @@ Metadata:
           - GitHubBranch
           - GitHubUser
           - GitHubSecret
+          - TrainingBucket
     ParameterLabels:
       ModelName:
         default: detektivkollektiv-ml-models
@@ -24,6 +26,8 @@ Metadata:
         default: DetektivKollektiv
       GitHubSecret:
         default: GitHub/ML-models
+      TrainingBucket:
+        default: sagemaker-eu-central-1-891514678401
 Parameters:
   Stage:
     Default: dev
@@ -53,6 +57,10 @@ Parameters:
     Default: GitHub/ML-models
     Type: String
     Description: Name of secret in the secretsmanager
+  TrainingBucket:
+    Default: sagemaker-eu-central-1-891514678401
+    Type: String
+    Description: Bucket where new trained models are stored
 
 Resources:
   ArtifactBucket:
@@ -67,8 +75,21 @@ Resources:
     Properties:
       BucketName: !Sub '${ModelName}'
       AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
+  NotificationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TrainingBucket
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Sub '${Stage}/'
+                  - Name: suffix
+                    Value: .tar.gz
+            Function: !GetAtt DeployNewModels.Arn
   BuildProject:
     Type: 'AWS::CodeBuild::Project'
     Properties:
@@ -302,32 +323,23 @@ Resources:
     Properties: 
       Description: Event when new models are stored in bucket
       EventPattern: 
-        source: 
-          - "aws.s3"
+        source: ["aws.s3"]
         detail: 
-          eventName: 
-            - "PutObject"
+          eventName: ["PutObject", "CopyObject", "UploadPart", "UploadPartCopy"]
           requestParameters:
             bucketName: 
-              - "sagemaker-eu-central-1-891514678401"
+              - !Sub ${TrainingBucket}
       Name: !Sub '${ModelName}-new-model-event-${Stage}'
       Targets: 
-        - Arn: 
-            Fn::GetAtt: 
-              - "DeployNewModels"
-              - "Arn"
+        - Arn: !GetAtt DeployNewModels.Arn
           Id: "DeployNewModelsTarget"
-  PermissionForEventsToInvokeLambda: 
+  PermissionForS3ToInvokeLambda: 
     Type: AWS::Lambda::Permission
     Properties: 
-      FunctionName: 
-        Ref: "DeployNewModels"
-      Action: "lambda:InvokeFunction"
-      Principal: "events.amazonaws.com"
-      SourceArn: 
-        Fn::GetAtt: 
-          - "DeployModelEvent"
-          - "Arn"
+      FunctionName: !Ref DeployNewModels
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${TrainingBucket}
   DeployModels:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -689,6 +701,13 @@ Resources:
                 Resource: 
                   - !Sub >-
                     arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
+              - Sid: DeployTrainedModels
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                Resource:
+                  - !Sub arn:aws:s3:::${TrainingBucket}
+                  - !Sub arn:aws:s3:::${TrainingBucket}/*
   PipelineRole:
     Type: 'AWS::IAM::Role'
     Properties:
