@@ -19,10 +19,6 @@ Parameters:
     Type: String
     Description: The role for executing the deployment
     Default: "arn:aws:iam::891514678401:role/detektivkollektiv-ml-models-deploy-role-dev"
-  ModelLocations:
-    Type: String
-    Description: Not required for stack, just for copying models to the correct location
-    Default: '{"TopicalPageRank": "s3://sagemaker-eu-central-1-891514678401/TopicalPageRank/model/2ebdc638-4413-45c5-a0a1-156a05c7c8d9/output"}'
   Stage:
     Default: dev
     Description: stage (corresponding to branch)
@@ -43,7 +39,7 @@ Resources:
         Ref: Stage
       Name: !Sub ${ModelName}-api-${Stage}
       Domain: 
-        DomainName: Fn::If [ProdCondition, api.detektivkollektiv.org, !Sub api.${Stage}.detektivkollektiv.org]
+        DomainName: !If [ProdCondition, api.detektivkollektiv.org, !Sub "api.${Stage}.detektivkollektiv.org"]
         CertificateArn: arn:aws:acm:us-east-1:891514678401:certificate/e4684486-f66e-4273-8dfb-550878f85854
         BasePath:
           - /ml_model_service

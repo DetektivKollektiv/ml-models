@@ -284,12 +284,14 @@ Resources:
           import boto3
           import os
           import json
+          import tarfile
           import logging
           from urllib.parse import unquote_plus
 
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
 
+          lb = boto3.client('lambda')
           s3_client = boto3.client('s3')
 
           def lambda_handler(event, context):
@@ -300,25 +302,24 @@ Resources:
                   key = unquote_plus(record['s3']['object']['key'])
                   logger.info('bucket: {}'.format(bucket))
                   logger.info('key: {}'.format(key))
-                  stage, model, model_id, remaining = key.split('/',3)
+                  stage, model, dummy, model_id, remaining = key.split('/',4)
                   logger.info('stage: {}'.format(stage))
                   logger.info('model: {}'.format(model))
                   logger.info('model_id: {}'.format(model_id))
                   # download new model
                   download_path = '/tmp/'
-                  s3_client.download_file(bucket, key, download_path)
-                  stage, model, model_id, remaining = key.split('/',3)
+                  s3_client.download_file(bucket, key, download_path+"model.tar.gz")
                   # download params-file
-                  s3_client.download_file(bucket, stage+'/'+model+'/params/'+model+'-params.json', download_path)
+                  s3_client.download_file(bucket, stage+'/'+model+'/params/'+model+'-params.json', download_path+model+'-params.json')
                   # tar model and params for upload
                   with tarfile.open(download_path+"model.tar.gz") as tar:
                       tar.extractall(download_path)
-                      os.chdir(downloadpath)
+                      os.chdir(download_path)
                       tar_name = model + "-" + model_id + ".tar.gz"
                       with tarfile.open(tar_name, "w:gz") as tar:
                           for name in [model+"-model", model+"-params.json"]: 
                               tar.add(name)
-                      destFileKey = 's3://' + os.environ["MODEL_NAME"] + '/' + stage + '/' + model + '-' + model_id + '.tar.gz'
+                      destFileKey = 's3://' + os.environ["MODEL_NAME"] + '/' + stage + '/' + model_id + '.tar.gz'
                       destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
                       s3_client.upload_file(tar_name, destbucket, destkey)
                   # update model id in Endpoint
