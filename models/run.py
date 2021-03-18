@@ -71,7 +71,7 @@ def get_endpoint_params(model_name, role, image_uri, stage, training_requests, m
             "ModelName": model_name,
             "ModelsPrefix": stage,
             "MLOpsRoleArn": role,
-            "ModelLocations": json.dumps(model_location),
+#            "ModelLocations": json.dumps(model_location),
             "Stage": stage,
             "ModelId": model_id
         }
