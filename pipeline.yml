@@ -284,20 +284,32 @@ Resources:
           import boto3
           import os
           import json
+          import logging
           from urllib.parse import unquote_plus
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
 
           s3_client = boto3.client('s3')
 
           def lambda_handler(event, context):
+              logger.info('Calling DeployNewModels with event')
+              logger.info(event)
               for record in event['Records']:
                   bucket = record['s3']['bucket']['name']
                   key = unquote_plus(record['s3']['object']['key'])
+                  logger.info('bucket: {}'.format(bucket))
+                  logger.info('key: {}'.format(key))
+                  stage, model, model_id, remaining = key.split('/',3)
+                  logger.info('stage: {}'.format(stage))
+                  logger.info('model: {}'.format(model))
+                  logger.info('model_id: {}'.format(model_id))
                   # download new model
-                  download_path = '/tmp'
+                  download_path = '/tmp/'
                   s3_client.download_file(bucket, key, download_path)
                   stage, model, model_id, remaining = key.split('/',3)
                   # download params-file
-                  s3_client.download_file(bucket, stage+'/'+model+'/'+model_id+'/params/'+model+'-params.json', download_path)
+                  s3_client.download_file(bucket, stage+'/'+model+'/params/'+model+'-params.json', download_path)
                   # tar model and params for upload
                   with tarfile.open(download_path+"model.tar.gz") as tar:
                       tar.extractall(download_path)

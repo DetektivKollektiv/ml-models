@@ -32,9 +32,10 @@ Parameters:
     Type: String
     Default: "2ebdc638-4413-45c5-a0a1-156a05c7c8d9"
 
+Conditions:
+  ProdCondition: !Equals [!Ref Stage, prod]
+  
 Resources:
-  ProdCondition:
-    !Equals [!Ref Stage, prod]
   Api:
     Type: AWS::Serverless::Api
     Properties:
