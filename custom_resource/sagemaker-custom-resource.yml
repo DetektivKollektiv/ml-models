@@ -105,6 +105,11 @@ Resources:
                 Action:
                   - events:* # Requires at least events:PutRule/events:RemoveTargets
                 Resource: "*" # TODO: Narrow this down
+              - Sid: AllowUpdateStack
+                Effect: Allow
+                Action:
+                  - cloudformation:* # Requires at least update stack for trainings jobs
+                Resource: "*" # TODO: Narrow this down
               - Sid: AllowPassRole
                 Effect: Allow
                 Action:
