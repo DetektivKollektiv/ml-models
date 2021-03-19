@@ -3,7 +3,7 @@
     "grammar": "NP: {<ADJ>*<NOUN|PROPN>}", 
     "language": "de", 
     "normalization": "None",
-    "n_topics": 50,
+    "n_topics": 40,
     "window": 10, 
     "max_count": 10,
     "train_df": "factchecks_de.csv"
