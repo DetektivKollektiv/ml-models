@@ -115,6 +115,10 @@ Resources:
       MemorySize: 512
       Role: !GetAtt SageMakerRole.Arn
       Runtime: python3.8
+      Environment:
+        Variables:
+          BUCKET: !Ref ModelName
+          PREFIX: !Ref Stage
       Timeout: 60
       Code:
         ZipFile: |
@@ -127,16 +131,26 @@ Resources:
           logger.setLevel(logging.INFO)
 
           sm = boto3.client('sagemaker')
+          s3 = boto3.client('s3')
 
           def lambda_handler(event, context):
               logger.info('Calling CreateSMExperiment with event')
               logger.info(event)
+              os.chdir('/tmp')
+              file_name = "models-id.json"
+              bucket = os.environ["BUCKET"]
+              key = os.environ["PREFIX"]+"/"+file_name
               if "Models" in event:
                   models = event["Models"]
-                  os.environ["MODELS"] = json.dumps(event)
                   trial_id = event["TrialID"]
+                  with open(file_name, "w") as f:
+                      json.dump(json.dumps(event), f)
+                  s3.upload_file(file_name, bucket, key)
               elif "trial_id" in event:
-                  models = json.loads(os.environ["MODELS"])["Models"]
+                  s3.download_file(bucket, key, file_name)
+                  with open(file_name, "r") as f:
+                      models_json = json.load(f)
+                  models = models_json["Models"]
                   trial_id = event["trial_id"]
 
               for experiment_name in models:
