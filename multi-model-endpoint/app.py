@@ -93,6 +93,6 @@ def update_modelId(event, context):
     models_json[model] = id
     logger.info("model {} has the new id {}.".format(model, id))
     with open(file_name, "w") as f:
-        json.dump(json.dumps(models_json), f)
+        json.dump(models_json, f)
     s3.upload_file(file_name, bucket, key)
 
