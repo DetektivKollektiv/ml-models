@@ -67,11 +67,16 @@ def get_training_job_name(event):
     return event["ResourceProperties"]["TrainingJobName"]
 
 
+def myconverter(o):
+    if isinstance(o, datetime.datetime):
+        return o.__str__()
+ 
+
 def is_training_job_ready(training_job_name):
     is_ready = False
     response = sm.describe_training_job(TrainingJobName=training_job_name)
     logger.info("Checking status of training job with name: %s", training_job_name)
-    logger.debug(json.dumps(response))
+    logger.debug(json.dumps(response, default = myconverter))
     status = response["TrainingJobStatus"]
     training_time = response["TrainingTimeInSeconds"]
 
