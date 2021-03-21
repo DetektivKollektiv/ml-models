@@ -79,7 +79,9 @@ def is_training_job_ready(training_job_name):
     logger.info("Checking status of training job with name: %s", training_job_name)
     logger.debug(json.dumps(response, default = myconverter))
     status = response["TrainingJobStatus"]
-    training_time = response["TrainingTimeInSeconds"]
+    training_time = 0
+    if "TrainingTimeInSeconds" in response:
+        training_time = response["TrainingTimeInSeconds"]
 
     if status == "Completed":
         logger.info("Training Job (%s) is Completed", training_job_name)
@@ -95,6 +97,7 @@ def is_training_job_ready(training_job_name):
                 training_job_name,
                 response["SecondaryStatus"],
             )
+            logger.info("Training time is %s seconds.", str(training_time))
         else:
             logger.info(
                 "Training job (%s) still in progress (%s), stop waiting and continuing with pipeline.",
