@@ -138,7 +138,15 @@ Resources:
                 Action:
                   - s3:Get*
                 Resource:
-                  - !Sub arn:aws:s3:::${ModelName}/$(ModelsPrefix)
-                  - !Sub arn:aws:s3:::${ModelName}/$(ModelsPrefix)/*
+                  - !Sub arn:aws:s3:::${ModelName}
+                  - !Sub arn:aws:s3:::${ModelName}/${ModelsPrefix}/*
+              - Sid: UpdateModelIds
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${ModelName}
+                  - !Sub arn:aws:s3:::${ModelName}/${ModelsPrefix}/*
             Version: "2012-10-17"
           PolicyName: !Sub ${ModelName}-InvokeSageMakerEndpoint-${Stage}
