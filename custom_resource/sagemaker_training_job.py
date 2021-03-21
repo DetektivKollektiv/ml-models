@@ -71,6 +71,7 @@ def is_training_job_ready(training_job_name):
     is_ready = False
     response = sm.describe_training_job(TrainingJobName=training_job_name)
     status = response["TrainingJobStatus"]
+    training_time = response["TrainingTimeInSeconds"]
 
     if status == "Completed":
         logger.info("Training Job (%s) is Completed", training_job_name)
@@ -80,11 +81,19 @@ def is_training_job_ready(training_job_name):
         helper.Data["Arn"] = response["TrainingJobArn"]
         is_ready = True
     elif status == "InProgress" or status == "Stopping":
-        logger.info(
-            "Training job (%s) still in progress (%s), waiting and polling again...",
-            training_job_name,
-            response["SecondaryStatus"],
-        )
+        if training_time < 1000:
+            logger.info(
+                "Training job (%s) still in progress (%s), waiting and polling again...",
+                training_job_name,
+                response["SecondaryStatus"],
+            )
+        else:
+            logger.info(
+                "Training job (%s) still in progress (%s), stop waiting and continuing with pipeline.",
+                training_job_name,
+                response["SecondaryStatus"],
+            )
+            is_ready = True
     else:
         raise Exception(
             "Training job ({}) has unexpected status: {}".format(

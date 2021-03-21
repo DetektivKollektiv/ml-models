@@ -41,7 +41,9 @@ def lambda_handler(event, context):
     # Get target model and its id
     target_model = event['pathParameters']['model_name']
     if target_model in models_json:
-        model_id = models_json[target_model]
+        model = models_json[target_model]
+    else:
+        model = target_model+"-"+model_id
 
     logger.info("content type: %s size: %d", content_type, len(payload))
 
@@ -51,7 +53,7 @@ def lambda_handler(event, context):
             EndpointName=endpoint_name,
             Body=payload,
             ContentType=content_type,
-            TargetModel=target_model+"-"+model_id+".tar.gz",
+            TargetModel=model+".tar.gz",
             Accept="application/json",
         )
         # Return predictions as JSON dictionary instead of CSV text
