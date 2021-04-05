@@ -158,13 +158,13 @@ class ModelHandler(object):
                     logging.info("row.iloc[0]: {}".format(row.iloc[0]))
                     tokens = gensim.utils.simple_preprocess(row.iloc[0])
                     # Remove stop words
-                    words1 = [w for w in tokens if not w in stoplist and w in model.wv.vocab]
+                    words1 = [w for w in tokens if not w in stoplist and w in model.wv.key_to_index]
                     logging.info("words1: {}".format(words1))
                     # prepare first document
                     logging.info("row.iloc[1]: {}".format(row.iloc[1]))
                     tokens = gensim.utils.simple_preprocess(row.iloc[1])
                     # Remove stop words
-                    words2 = [w for w in tokens if not w in stoplist and w in model.wv.vocab]
+                    words2 = [w for w in tokens if not w in stoplist and w in model.wv.key_to_index]
                     logging.info("words2: {}".format(words2))
                     similarities.append(str(model.wv.n_similarity(words1, words2)))
                     logging.info("similarities: {}".format(similarities))
