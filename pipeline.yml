@@ -14,7 +14,6 @@ Metadata:
           - GitHubBranch
           - GitHubUser
           - GitHubSecret
-          - TrainingBucket
     ParameterLabels:
       ModelName:
         default: detektivkollektiv-ml-models
@@ -26,8 +25,6 @@ Metadata:
         default: DetektivKollektiv
       GitHubSecret:
         default: GitHub/ML-models
-      TrainingBucket:
-        default: sagemaker-eu-central-1-891514678401
 Parameters:
   Stage:
     Default: dev
@@ -57,10 +54,6 @@ Parameters:
     Default: GitHub/ML-models
     Type: String
     Description: Name of secret in the secretsmanager
-  TrainingBucket:
-    Default: sagemaker-eu-central-1-891514678401
-    Type: String
-    Description: Bucket where new trained models are stored
 
 Resources:
   ArtifactBucket:
@@ -78,7 +71,7 @@ Resources:
   NotificationBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref TrainingBucket
+      BucketName: !Sub '${ModelName}-training-${Stage}'
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: 's3:ObjectCreated:*'
@@ -355,7 +348,7 @@ Resources:
           eventName: ["PutObject", "CopyObject", "UploadPart", "UploadPartCopy"]
           requestParameters:
             bucketName: 
-              - !Sub ${TrainingBucket}
+              - !Sub '${ModelName}-training-${Stage}'
       Name: !Sub '${ModelName}-new-model-event-${Stage}'
       Targets: 
         - Arn: !GetAtt DeployNewModels.Arn
@@ -366,7 +359,7 @@ Resources:
       FunctionName: !Ref DeployNewModels
       Action: lambda:InvokeFunction
       Principal: s3.amazonaws.com
-      SourceArn: !Sub arn:aws:s3:::${TrainingBucket}
+      SourceArn: !Sub arn:aws:s3:::${ModelName}-training-${Stage}
   DeployPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
@@ -651,8 +644,8 @@ Resources:
                 Action:
                   - s3:Get*
                 Resource:
-                  - !Sub arn:aws:s3:::${TrainingBucket}
-                  - !Sub arn:aws:s3:::${TrainingBucket}/*
+                  - !Sub arn:aws:s3:::${ModelName}-training-${Stage}
+                  - !Sub arn:aws:s3:::${ModelName}-training-${Stage}/*
   PipelineRole:
     Type: 'AWS::IAM::Role'
     Properties:

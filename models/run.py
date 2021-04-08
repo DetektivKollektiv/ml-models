@@ -11,8 +11,10 @@ import sagemaker
 from sagemaker.workflow.airflow import training_config
 
 sagemaker_session = sagemaker.session.Session()
-bucket = sagemaker_session.default_bucket()
 
+
+def get_bucket_name(model_name, stage):
+    return model_name+"-training-"+stage
 
 def create_tar_file(source_files, filename):
     with tarfile.open(filename, mode="w:gz") as t:
@@ -34,8 +36,7 @@ def get_training_request(
     training_uri,
     hyperparameters,
 ):
-    if stage=="qa":
-        training_bucket = bucket+"-"+stage
+    training_bucket = get_bucket_name(model_name, stage)
     model_uri = "s3://{0}/{1}/{2}".format(training_bucket, stage, model_name)
 
     # include location of tarfile and name of training script
@@ -109,8 +110,7 @@ def get_training_job_name(model_name, model_id):
     return model_name+"-"+model_id
 
 def get_custom_resource_params(model_name, stage):
-    if stage=="qa":
-        training_bucket = bucket+"-"+stage
+    training_bucket = get_bucket_name(model_name, stage)
     return {
         "Parameters": {
             "ModelName": model_name,
@@ -181,8 +181,7 @@ def main(
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
             # upload tar file to S3
-            if stage=="qa":
-                training_bucket = bucket+"-"+stage
+            training_bucket = get_bucket_name(model_name, stage)
             sources = sagemaker_session.upload_data(tar_file, training_bucket, stage + '/' + model + '/code')
             print(sources)
             # delete tar file after uploading
@@ -209,8 +208,7 @@ def main(
                 hyperparameters,
             )
         # Upload params-file
-        if stage=="qa":
-            training_bucket = bucket+"-"+stage
+        training_bucket = get_bucket_name(model_name, stage)
         params_location = sagemaker_session.upload_data(params_file, training_bucket, stage + '/' + model + '/params')
         print("Parameter-file uploaded to {}".format(params_location))
 
