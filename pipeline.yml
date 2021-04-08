@@ -1,0 +1,842 @@
+Description: Pipeline for Multi model deployment
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Required Parameters
+        Parameters:
+          - ModelName
+          - Stage
+      - Label:
+          default: Optional GitHub Parameters
+        Parameters:
+          - GitHubRepo
+          - GitHubBranch
+          - GitHubUser
+          - GitHubSecret
+          - TrainingBucket
+    ParameterLabels:
+      ModelName:
+        default: detektivkollektiv-ml-models
+      GitHubRepo:
+        default: ml-models
+      GitHubBranch:
+        default: develop
+      GitHubUser:
+        default: DetektivKollektiv
+      GitHubSecret:
+        default: GitHub/ML-models
+      TrainingBucket:
+        default: sagemaker-eu-central-1-891514678401
+Parameters:
+  Stage:
+    Default: dev
+    Description: stage (corresponding to branch)
+    Type: String
+  ModelName:
+    Default: detektivkollektiv-ml-models
+    Type: String
+    Description: Name of the model
+    MinLength: 1
+    MaxLength: 30
+    AllowedPattern: '^[a-z0-9](-*[a-z0-9])*'
+    ConstraintDescription: Must be lowercase or numbers with a length of 1-25 characters.
+  GitHubUser:
+    Default: DetektivKollektiv
+    Description: Your GitHub username
+    Type: String
+  GitHubRepo:
+    Default: ml-models
+    Type: String
+    Description: Name of the GitHub repository
+  GitHubBranch:
+    Default: develop
+    Type: String
+    Description: Name of the branch the code is located
+  GitHubSecret:
+    Default: GitHub/ML-models
+    Type: String
+    Description: Name of secret in the secretsmanager
+  TrainingBucket:
+    Default: sagemaker-eu-central-1-891514678401
+    Type: String
+    Description: Bucket where new trained models are stored
+
+Resources:
+  ArtifactBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${ModelName}-artifacts-${Stage}'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+  ModelBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${ModelName}'
+      AccessControl: Private
+  NotificationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TrainingBucket
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Sub '${Stage}/'
+                  - Name: suffix
+                    Value: .tar.gz
+            Function: !GetAtt DeployNewModels.Arn
+  BuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: !Sub '${ModelName}-build-${Stage}'
+      Description: Build and push the multi-model image and train models
+      ServiceRole: !GetAtt SageMakerRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/standard:4.0'
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ./buildspec.yml
+      TimeoutInMinutes: 30
+  CreateSMexperiment:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ModelName}-create-sm-experiment-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt SageMakerRole.Arn
+      Runtime: python3.8
+      Environment:
+        Variables:
+          BUCKET: !Ref ModelName
+          PREFIX: !Ref Stage
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          sm = boto3.client('sagemaker')
+          s3 = boto3.client('s3')
+
+          def lambda_handler(event, context):
+              logger.info('Calling CreateSMExperiment with event')
+              logger.info(event)
+              os.chdir('/tmp')
+              file_name = "models-id.json"
+              bucket = os.environ["BUCKET"]
+              key = os.environ["PREFIX"]+"/"+file_name
+              if "Models" in event:
+                  models = event["Models"]
+                  trial_id = event["TrialID"]
+                  with open(file_name, "w") as f:
+                      json.dump(event, f)
+                  s3.upload_file(file_name, bucket, key)
+              elif "trial_id" in event:
+                  s3.download_file(bucket, key, file_name)
+                  with open(file_name, "r") as f:
+                      models_json = json.load(f)
+                  models = models_json["Models"]
+                  trial_id = event["trial_id"]
+
+              for experiment_name in models:
+                  trial_name = experiment_name+'-'+trial_id
+                  response = sm.search(
+                      Resource='Experiment',
+                      SearchExpression={
+                          'Filters': [
+                              {
+                                  'Name': 'ExperimentName',
+                                  'Operator': 'Equals',
+                                  'Value': experiment_name
+                              }
+                          ]
+                      }
+                  )
+                  experiment_found = False
+                  results = response['Results']
+                  if len(results)>0:
+                      if 'Experiment' in results[0]:
+                          if 'ExperimentName' in results[0]['Experiment']:
+                              if results[0]['Experiment']['ExperimentName'] == experiment_name:
+                                  experiment_found = True
+                  try:
+                      if not experiment_found:
+                          response = sm.create_experiment(ExperimentName=experiment_name)
+                  except Exception as e:
+                      logger.error('Error {} creating experiment.'.format(e))
+                  response = sm.search(
+                      Resource='ExperimentTrial',
+                      SearchExpression={
+                          'Filters': [
+                              {
+                                  'Name': 'ExperimentName',
+                                  'Operator': 'Equals',
+                                  'Value': experiment_name
+                              },
+                              {
+                                  'Name': 'TrialName',
+                                  'Operator': 'Equals',
+                                  'Value': trial_name
+                              }
+                          ]
+                      }
+                  )
+                  trial_found = False
+                  results = response['Results']
+                  if len(results)>0:
+                      if 'Trial' in results[0]:
+                          if 'TrialName' in results[0]['Trial']:
+                              if results[0]['Trial']['TrialName'] == trial_name:
+                                  trial_found = True
+                  try:
+                      if not trial_found:
+                          response = sm.create_trial(ExperimentName=experiment_name, TrialName=trial_name)
+                  except Exception as e:
+                      logger.error('Error {} creating trial.'.format(e))
+
+              return 'Done'
+      Description: Function that creates experiments and trials in sagemaker
+  CreateExperiment:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ModelName}-create-experiment-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt SageMakerRole.Arn
+      Runtime: python3.8
+      Environment:
+        Variables:
+          FNNAME:
+            Ref: CreateSMexperiment
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import io
+          import zipfile
+          import json
+          import logging
+          import os
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          s3 = boto3.client('s3')
+          lb = boto3.client('lambda')
+
+          codepipeline = boto3.client('codepipeline')
+
+          def lambda_handler(event, context):
+              logger.info('Calling CreateExperiment with event')
+              logger.info(event)
+              jobId = event["CodePipeline.job"]["id"]
+
+              try:
+                  for inputArtifacts in event["CodePipeline.job"]["data"]["inputArtifacts"]:
+                      if inputArtifacts['name'] == 'BuildOutput':
+                          s3Location = inputArtifacts['location']['s3Location']
+                          response = s3.get_object(Bucket=s3Location['bucketName'], Key=s3Location['objectKey'])
+                          zip_bytes = response['Body'].read()
+                          with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+                            with z.open('trials.json') as myfile:
+                                trials_binary = myfile.read()
+                          trials_str = trials_binary.decode("UTF-8")
+                          trials = json.loads(trials_str)
+                  if trials is None:
+                      logger.error("Experiment and Trial config not found")
+                      raise(Exception("Experiment and Trial config not found"))
+
+                  response = lb.invoke(
+                      FunctionName = os.environ['FNNAME'],
+                      Payload=trials_binary,
+                  )
+
+                  # and update codepipeline
+                  codepipeline.put_job_success_result(jobId=jobId)
+              except Exception as e:
+                  logger.error(e)
+                  resp = codepipeline.put_job_failure_result(
+                      jobId=jobId,
+                      failureDetails={
+                          'type': 'ConfigurationError',
+                          'message': str(e),
+                          'externalExecutionId': context.aws_request_id
+                      }
+                  )
+              return 'Done'
+      Description: Function is called by codepipeline and creates an experiment and trial 
+  DeployNewModels:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ModelName}-deploy-new-models-${Stage}'
+      Handler: index.lambda_handler
+      MemorySize: 512
+      Role: !GetAtt SageMakerRole.Arn
+      Runtime: python3.8
+      Environment:
+        Variables:
+          MODEL_NAME:
+            Ref: ModelName
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+          import tarfile
+          import logging
+          from urllib.parse import unquote_plus
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          lb = boto3.client('lambda')
+          s3_client = boto3.client('s3')
+
+          def lambda_handler(event, context):
+              logger.info('Calling DeployNewModels with event')
+              logger.info(event)
+              for record in event['Records']:
+                  bucket = record['s3']['bucket']['name']
+                  key = unquote_plus(record['s3']['object']['key'])
+                  logger.info('bucket: {}'.format(bucket))
+                  logger.info('key: {}'.format(key))
+                  stage, model, dummy, model_id, remaining = key.split('/',4)
+                  logger.info('stage: {}'.format(stage))
+                  logger.info('model: {}'.format(model))
+                  logger.info('model_id: {}'.format(model_id))
+                  # download new model
+                  download_path = '/tmp/'
+                  s3_client.download_file(bucket, key, download_path+"model.tar.gz")
+                  # download params-file
+                  s3_client.download_file(bucket, stage+'/'+model+'/params/'+model+'-params.json', download_path+model+'-params.json')
+                  # tar model and params for upload
+                  with tarfile.open(download_path+"model.tar.gz") as tar:
+                      tar.extractall(download_path)
+                      os.chdir(download_path)
+                      tar_name = model + "-" + model_id + ".tar.gz"
+                      with tarfile.open(tar_name, "w:gz") as tar:
+                          for name in [model+"-model", model+"-params.json"]: 
+                              tar.add(name)
+                      destFileKey = 's3://' + os.environ["MODEL_NAME"] + '/' + stage + '/' + model_id + '.tar.gz'
+                      destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
+                      s3_client.upload_file(tar_name, destbucket, destkey)
+                  # update model id in Endpoint
+                  event = {}
+                  event["model"] = model
+                  event["id"] = model_id
+                  response = lb.invoke(
+                      FunctionName = os.environ["MODEL_NAME"]+"-update-model-"+stage,
+                      Payload=json.dumps(event).encode()
+                  )
+      Description: Function that deploys trained models to the multi model bucket
+  DeployModelEvent:
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: Event when new models are stored in bucket
+      EventPattern: 
+        source: ["aws.s3"]
+        detail: 
+          eventName: ["PutObject", "CopyObject", "UploadPart", "UploadPartCopy"]
+          requestParameters:
+            bucketName: 
+              - !Sub ${TrainingBucket}
+      Name: !Sub '${ModelName}-new-model-event-${Stage}'
+      Targets: 
+        - Arn: !GetAtt DeployNewModels.Arn
+          Id: "DeployNewModelsTarget"
+  PermissionForS3ToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref DeployNewModels
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${TrainingBucket}
+  DeployPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: !Sub '${ModelName}-${Stage}'
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location:
+          Ref: ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: '1'
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: !Ref GitHubUser
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: !Sub '{{resolve:secretsmanager:${GitHubSecret}:SecretString:token}}'
+        - Name: Build
+          Actions:
+            - Name: BuildImage
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref BuildProject
+                PrimarySource: SourceOutput
+                EnvironmentVariables: !Sub >-
+                  [{"name":"MODEL_NAME","value":"${ModelName}","type":"PLAINTEXT"},{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"},{"name":"ARTIFACT_BUCKET","value":"${ArtifactBucket}","type":"PLAINTEXT"},{"name":"ROLE_ARN","value":"${MLOpsRole.Arn}","type":"PLAINTEXT"}]
+              RunOrder: 1
+            - Name: SetupTraining
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt MLOpsRole.Arn
+                Capabilities: 'CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND'
+                StackName: !Sub '${ModelName}-custom-resource-${Stage}'
+                TemplateConfiguration: 'BuildOutput::template-custom-resource.json'
+                TemplatePath: 'BuildOutput::template-custom-resource.yml'
+              RunOrder: 2
+        - Name: Train
+          Actions:
+            - Name: CreateExperiment
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Version: '1'
+                Provider: Lambda
+              Configuration:
+                FunctionName: !Ref CreateExperiment
+                UserParameters: !Sub 'mlops-pipeline-${ModelName}'
+              RunOrder: 1
+            - Name: TrainModel
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt MLOpsRole.Arn
+                StackName: !Sub '${ModelName}-training-job-${Stage}'
+                TemplatePath: 'BuildOutput::training-job.yml'
+              RunOrder: 2
+        - Name: Deploy
+          Actions:
+            - Name: DeployEndpoint
+              InputArtifacts:
+                - Name: BuildOutput
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt MLOpsRole.Arn
+                StackName: !Sub '${ModelName}-endpoint-${Stage}'
+                TemplateConfiguration: 'BuildOutput::deploy-endpoint.json'
+                TemplatePath: 'BuildOutput::template-endpoint.yml'
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND    
+              RunOrder: 1
+  S3Policy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub '${ModelName}-s3-policy-${Stage}'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3Resources
+            Effect: Allow
+            Action:
+              - 's3:CreateBucket'
+              - 's3:GetBucket*'
+              - 's3:GetObject*'
+              - 's3:ListBucket'
+              - 's3:PutObject'
+            Resource:
+              - !Sub 'arn:aws:s3:::${ModelBucket}/${Stage}/*'
+              - !Sub 'arn:aws:s3:::${ModelBucket}/${Stage}'
+              - !Sub 'arn:aws:s3:::${ModelBucket}'
+              - !Sub 'arn:aws:s3:::factchecks-${Stage}'
+              - !Sub 'arn:aws:s3:::factchecks-${Stage}/*'
+              - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'
+              - !Sub 'arn:aws:s3:::${ArtifactBucket}'
+              - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}/*'
+              - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}'
+          - Sid: AllowLogs
+            Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: '*'
+      Roles:
+        - !Ref SageMakerRole
+        - !Ref PipelineRole
+        - !Ref MLOpsRole
+  CloudWatchEventRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-cwe-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub '${ModelName}-mlops-cwe-pipeline-execution-${Stage}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'codepipeline:StartPipelineExecution'
+                Resource: !Sub >-
+                  arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${DeployPipeline}
+  SageMakerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-sagemaker-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchSyntheticsFullAccess'
+      Policies:
+        - PolicyName: !Sub '${ModelName}-mlops-sagemaker-policy-${Stage}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowCloudFormation
+                Effect: Allow
+                Action:
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DescribeStackEvents'
+                Resource:
+                  - !Sub >-
+                    arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ModelName}-${Stage}*
+              - Sid: SageMakerTesting
+                Effect: Allow
+                Action:
+                  - 'sagemaker:CreateExperiment'
+                  - 'sagemaker:CreateTrial'
+                  - 'sagemaker:DescribeEndpoint'
+                  - 'sagemaker:DescribeEndpointConfig'
+                  - 'sagemaker:DescribeMonitoringSchedule'
+                  - 'sagemaker:DescribeProcessingJob'
+                  - 'sagemaker:InvokeEndpoint'
+                  - 'sagemaker:ListMonitoringExecutions'
+                  - 'sagemaker:Search'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+              - Sid: AllowCodePipeline
+                Effect: Allow
+                Action:
+                  - 'codepipeline:GetPipeline'
+                  - 'codepipeline:GetPipelineState'
+                  - 'codepipeline:GetPipelineExecution'
+                  - 'codepipeline:PutApprovalResult'
+                  - 'codepipeline:PutJobFailureResult'
+                  - 'codepipeline:PutJobSuccessResult'
+                Resource: '*'
+              - Sid: AllowCloudWatch
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:PutMetricData'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:DeleteDashboards'
+                  - 'iam:GetRole'
+                Resource: '*'
+              - Sid: AllowPassRoleLambda
+                Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': lambda.amazonaws.com
+              - Sid: ListImagesInRepository
+                Effect: Allow
+                Action:
+                  - 'ecr:ListImages'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}
+              - Sid: GetAuthorizationToken
+                Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                Resource: '*'
+              - Sid: ManageRepositoryContents
+                Effect: Allow
+                Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:TagResource'
+                  - 'ecr:UntagResource'
+                  - 'ecr:DescribeRepositories'
+                  - 'ecr:ListImages'
+                  - 'ecr:ListTagsForResource'
+                  - 'ecr:DescribeImages'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:InitiateLayerUpload'
+                  - 'ecr:UploadLayerPart'
+                  - 'ecr:CompleteLayerUpload'
+                  - 'ecr:CreateRepository'
+                  - 'ecr:PutImage'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
+              - Sid: DeployTrainedModels
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                Resource:
+                  - !Sub arn:aws:s3:::${TrainingBucket}
+                  - !Sub arn:aws:s3:::${TrainingBucket}/*
+  PipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-pipeline-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub '${ModelName}-mlops-pipeline-${Stage}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudFormation
+                Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+              - Sid: CodeBuild
+                Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Sid: AllowPassRoleCloudFormation
+                Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: !GetAtt MLOpsRole.Arn
+  MLOpsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ModelName}-deploy-role-${Stage}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub '${ModelName}-mlops-deploy-${Stage}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: CloudFormation
+                Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                  - 'iam:AttachRolePolicy'
+                  - 'iam:CreateRole'
+                  - 'iam:CreatePolicy'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:DeleteRole'
+                  - 'iam:DetachRolePolicy'
+                  - 'iam:PutRolePolicy'
+                  - 'iam:PassRole'
+                  - 'iam:DeleteRolePolicy'
+                  - 'iam:CreateServiceLinkedRole'
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+              - Sid: SageMakerTraining
+                Effect: Allow
+                Action:
+                  - 'sagemaker:CreateTrainingJob'
+                Resource: '*'
+              - Sid: SageMakerDeployment
+                Effect: Allow
+                Action:
+                  - 'sagemaker:CreateEndpoint'
+                  - 'sagemaker:CreateEndpointConfig'
+                  - 'sagemaker:CreateModel'
+                  - 'sagemaker:DeleteEndpoint'
+                  - 'sagemaker:DeleteEndpointConfig'
+                  - 'sagemaker:DeleteModel'
+                  - 'sagemaker:DescribeEndpoint'
+                  - 'sagemaker:DescribeEndpointConfig'
+                  - 'sagemaker:DescribeModel'
+                  - 'sagemaker:UpdateEndpointWeightsAndCapacities'
+                  - 'kms:CreateGrant'
+                Resource: '*'
+              - Sid: ApiDeployment
+                Effect: Allow
+                Action:
+                  - 'apigateway:*'
+                  - 'application-autoscaling:DeregisterScalableTarget'
+                  - 'application-autoscaling:DeleteScalingPolicy'
+                  - 'application-autoscaling:DescribeScalingPolicies'
+                  - 'application-autoscaling:PutScalingPolicy'
+                  - 'application-autoscaling:DescribeScalingPolicies'
+                  - 'application-autoscaling:RegisterScalableTarget'
+                  - 'application-autoscaling:DescribeScalableTargets'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'codedeploy:*'
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateAlias'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteAlias'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:GetFunction'
+                  - 'lambda:GetAlias'
+                  - 'lambda:ListTags'
+                  - 'lambda:ListVersionsByFunction'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:RemovePermission'
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:UpdateFunctionConfiguration'
+                  - 'lambda:GetFunctionConfiguration'
+                  - 'sns:CreateTopic'
+                  - 'sns:DeleteTopic'
+                  - 'sns:GetTopicAttributes'
+                  - 'sns:ListTopics'
+                Resource: '*'
+              - Sid: AllowPassRoleSageMaker
+                Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': sagemaker.amazonaws.com
+              - Sid: PullRepositoryImages
+                Effect: Allow
+                Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:DescribeRepositories'
+                  - 'ecr:DescribeImages'
+                  - 'ecr:ListImages'
+                  - 'ecr:ListTagsForResource'
+                  - 'ecr:DescribeRegistry'
+                  - 'ecr:GetLifecyclePolicy'
+                  - 'ecr:GetLifecyclePolicyPreview'
+                  - 'ecr:GetRegistryPolicy'
+                  - 'ecr:GetRepositoryPolicy'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}*
+              - Sid: ListImagesInRepository
+                Effect: Allow
+                Action:
+                  - 'ecr:ListImages'
+                Resource: 
+                  - !Sub >-
+                    arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ModelName}
+              - Sid: GetAuthorizationToken
+                Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                Resource: '*'
+              - Sid: Events
+                Effect: Allow
+                Action:
+                  - 'events:DeleteRule'
+                  - 'events:DescribeRule'
+                  - 'events:ListRuleNamesByTarget'
+                  - 'events:ListRules'
+                  - 'events:ListTargetsByRule'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:RemoveTargets'
+                Resource: '*'
+
