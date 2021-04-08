@@ -12,8 +12,6 @@ from sagemaker.workflow.airflow import training_config
 
 sagemaker_session = sagemaker.session.Session()
 bucket = sagemaker_session.default_bucket()
-if stage=="qa":
-    bucket = bucket+"-"+stage
 
 
 def create_tar_file(source_files, filename):
@@ -36,7 +34,9 @@ def get_training_request(
     training_uri,
     hyperparameters,
 ):
-    model_uri = "s3://{0}/{1}/{2}".format(bucket, stage, model_name)
+    if stage=="qa":
+        training_bucket = bucket+"-"+stage
+    model_uri = "s3://{0}/{1}/{2}".format(training_bucket, stage, model_name)
 
     # include location of tarfile and name of training script
     hyperparameters["sagemaker_program"] = "train.py"
@@ -109,13 +109,15 @@ def get_training_job_name(model_name, model_id):
     return model_name+"-"+model_id
 
 def get_custom_resource_params(model_name, stage):
+    if stage=="qa":
+        training_bucket = bucket+"-"+stage
     return {
         "Parameters": {
             "ModelName": model_name,
             "Stage": stage,
             "TrainingJobStackName": model_name+"-training-job-"+stage,
             "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage,
-            "TrainingBucket": bucket
+            "TrainingBucket": training_bucket
         }
     }
 
@@ -179,7 +181,9 @@ def main(
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
             # upload tar file to S3
-            sources = sagemaker_session.upload_data(tar_file, bucket, stage + '/' + model + '/code')
+            if stage=="qa":
+                training_bucket = bucket+"-"+stage
+            sources = sagemaker_session.upload_data(tar_file, training_bucket, stage + '/' + model + '/code')
             print(sources)
             # delete tar file after uploading
             try:
@@ -205,7 +209,9 @@ def main(
                 hyperparameters,
             )
         # Upload params-file
-        params_location = sagemaker_session.upload_data(params_file, bucket, stage + '/' + model + '/params')
+        if stage=="qa":
+            training_bucket = bucket+"-"+stage
+        params_location = sagemaker_session.upload_data(params_file, training_bucket, stage + '/' + model + '/params')
         print("Parameter-file uploaded to {}".format(params_location))
 
         # create Cloudformation template for training jobs
