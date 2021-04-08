@@ -73,7 +73,7 @@ Resources:
   ModelBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
-      BucketName: !Sub '${ModelName}'
+      BucketName: !Sub '${ModelName}-${Stage}'
       AccessControl: Private
   NotificationBucket:
     Type: AWS::S3::Bucket
