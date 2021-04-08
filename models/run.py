@@ -34,9 +34,9 @@ def get_training_request(
     role,
     image_uri,
     training_uri,
+    training_bucket,
     hyperparameters,
 ):
-    training_bucket = get_bucket_name(model_name, stage)
     model_uri = "s3://{0}/{1}".format(training_bucket, model_name)
 
     # include location of tarfile and name of training script
@@ -176,7 +176,7 @@ def main(
             training_uri = input_data["Training"]["Uri"]
             training_uri = training_uri.replace("STAGE", stage)
             training_file = input_data["Training"]["file_name"]
-            print("Train model {} with data {} in {}".format(model, training_uri, training_file))
+            print("Train model {} with data {} in {}".format(model, training_file, training_uri))
             # create tar file with training script
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
@@ -205,6 +205,7 @@ def main(
                 role,
                 training_image_uri,
                 training_uri,
+                training_bucket,
                 hyperparameters,
             )
         # Upload params-file
@@ -233,12 +234,12 @@ def main(
     with open(os.path.join(output_dir, "training-job.yml"), "w") as f:
         f.write(training_template)
 
-    # Write the dev & prod params for template-custom-resource.yml
+    # Write the params for template-custom-resource.yml
     with open(os.path.join(output_dir, "template-custom-resource.json"), "w") as f:
         params = get_custom_resource_params(model_name, stage)
         json.dump(params, f)
 
-    # Write the dev & prod params for CFN
+    # Write the params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
         params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests, model_id)
         json.dump(params, f)
