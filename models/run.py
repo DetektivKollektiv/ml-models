@@ -12,6 +12,9 @@ from sagemaker.workflow.airflow import training_config
 
 sagemaker_session = sagemaker.session.Session()
 bucket = sagemaker_session.default_bucket()
+if stage=="qa":
+    bucket = bucket+"-"+stage
+
 
 def create_tar_file(source_files, filename):
     with tarfile.open(filename, mode="w:gz") as t:
