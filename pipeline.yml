@@ -79,7 +79,7 @@ Resources:
               S3Key:
                 Rules:
                   - Name: suffix
-                    Value: .tar.gz
+                    Value: model.tar.gz
             Function: !GetAtt DeployNewModels.Arn
   BuildProject:
     Type: 'AWS::CodeBuild::Project'
@@ -282,6 +282,8 @@ Resources:
         Variables:
           MODEL_NAME:
             Ref: ModelName
+          MODEL_BUCKET:
+            Ref: ModelBucket
       Timeout: 60
       Code:
         ZipFile: |
@@ -322,7 +324,7 @@ Resources:
                       with tarfile.open(tar_name, "w:gz") as tar:
                           for name in [model+"-model", model+"-params.json"]: 
                               tar.add(name)
-                      destFileKey = 's3://' + os.environ["MODEL_NAME"] + '/' + model_id + '.tar.gz'
+                      destFileKey = 's3://' + os.environ["MODEL_BUCKET"] + '/' + model_id + '.tar.gz'
                       destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
                       s3_client.upload_file(tar_name, destbucket, destkey)
                   # update model id in Endpoint
