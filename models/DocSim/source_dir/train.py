@@ -14,6 +14,15 @@ import gensim
 import pickle
 
 
+def text_preprocess(text):
+    text = text.replace("5G", "fuenfg")
+    text = text.replace("5g", "fuenfg")
+    tokens = gensim.utils.simple_preprocess(text)
+    for ind, token in enumerate(tokens):
+        if token == "fuenfg":
+            tokens[ind] = "5G"
+    return tokens
+
 def train(model_name, language, vector_size, min_count, epochs, train_df, train_channel):
 
     # split df in single news
@@ -28,7 +37,7 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, train_
     documents_train = []
     for i, row in df_factchecks.iterrows():
         if 'claim_text' in row:
-            tokens = gensim.utils.simple_preprocess(row["claim_text"])
+            tokens = text_preprocess(row["claim_text"])
             # Remove stop words
             words = [w for w in tokens if not w in stoplist]
             # For training data, add tags

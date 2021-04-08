@@ -105,6 +105,15 @@ class ModelHandler(object):
             logging.error("Model {} not supported!".format(self.model_type))
             raise RuntimeError("Model {} not supported!".format(self.model_type))
 
+    def text_preprocess(self, text):
+        text = text.replace("5G", "fuenfg")
+        text = text.replace("5g", "fuenfg")
+        tokens = gensim.utils.simple_preprocess(text)
+        for ind, token in enumerate(tokens):
+            if token == "fuenfg":
+                tokens[ind] = "5G"
+        return tokens
+
     def inference(self, model_input):
         """
         Internal inference methods
@@ -156,7 +165,7 @@ class ModelHandler(object):
                     logging.info("{}. row: {}".format(i, row))
                     # prepare first document
                     logging.info("row.iloc[0]: {}".format(row.iloc[0]))
-                    tokens = gensim.utils.simple_preprocess(row.iloc[0])
+                    tokens = self.text_preprocess(row.iloc[0])
                     # Remove stop words
                     words1 = [w for w in tokens if not w in stoplist and w in model.wv.key_to_index]
                     logging.info("words1: {}".format(words1))
