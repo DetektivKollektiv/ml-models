@@ -37,7 +37,7 @@ def get_training_request(
     hyperparameters,
 ):
     training_bucket = get_bucket_name(model_name, stage)
-    model_uri = "s3://{0}/{1}/{2}".format(training_bucket, stage, model_name)
+    model_uri = "s3://{0}/{1}".format(training_bucket, model_name)
 
     # include location of tarfile and name of training script
     hyperparameters["sagemaker_program"] = "train.py"
@@ -182,7 +182,7 @@ def main(
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
             # upload tar file to S3
             training_bucket = get_bucket_name(model_name, stage)
-            sources = sagemaker_session.upload_data(tar_file, training_bucket, stage + '/' + model + '/code')
+            sources = sagemaker_session.upload_data(tar_file, training_bucket, model + '/code')
             print(sources)
             # delete tar file after uploading
             try:
@@ -209,7 +209,7 @@ def main(
             )
         # Upload params-file
         training_bucket = get_bucket_name(model_name, stage)
-        params_location = sagemaker_session.upload_data(params_file, training_bucket, stage + '/' + model + '/params')
+        params_location = sagemaker_session.upload_data(params_file, training_bucket, model + '/params')
         print("Parameter-file uploaded to {}".format(params_location))
 
         # create Cloudformation template for training jobs
