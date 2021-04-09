@@ -13,7 +13,7 @@ s3 = boto3.client('s3')
 
 file_name = "models-id.json"
 bucket = os.environ["BUCKET"]
-key = os.environ["PREFIX"]+"/"+file_name
+key = file_name
 
 
 def lambda_handler(event, context):
