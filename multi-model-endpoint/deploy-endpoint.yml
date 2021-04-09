@@ -80,7 +80,7 @@ Resources:
         Variables:
           ENDPOINT_NAME: !GetAtt Endpoint.EndpointName
           DEFAULT_ID: !Ref ModelId
-          BUCKET: !Ref ModelName
+          BUCKET: !Sub ${ModelName}-${Stage}
       Events:
         ApiEvent:
           Type: Api
@@ -102,7 +102,7 @@ Resources:
       Environment:
         Variables:
           DEFAULT_ID: !Ref ModelId
-          BUCKET: !Ref ModelName
+          BUCKET: !Sub ${ModelName}-${Stage}
     Description: "updates IDs of models to be used via the SageMaker endpoint"
 
   ApiFunctionRole:

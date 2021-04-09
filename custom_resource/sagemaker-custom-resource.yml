@@ -18,10 +18,6 @@ Parameters:
     Default: "detektivkollektiv-ml-models-create-sm-experiment-dev"
     Description: lambda for creating experiments and trials
     Type: String
-  TrainingBucket:
-    Default: sagemaker-eu-central-1-891514678401
-    Type: String
-    Description: Bucket where new trained models are stored
 
 Resources:
   TrainingJobFunction:
