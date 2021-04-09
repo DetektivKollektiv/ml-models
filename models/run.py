@@ -108,14 +108,12 @@ def get_training_job_name(model_name, model_id):
     return model_name+"-"+model_id
 
 def get_custom_resource_params(model_name, stage):
-    training_bucket = get_bucket_name(model_name, stage)
     return {
         "Parameters": {
             "ModelName": model_name,
             "Stage": stage,
             "TrainingJobStackName": model_name+"-training-job-"+stage,
             "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage,
-            "TrainingBucket": training_bucket
         }
     }
 
