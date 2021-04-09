@@ -64,18 +64,16 @@ def get_training_request(
     request = training_config(estimator, inputs=data, job_name=get_training_job_name(model_name, model_id))
     return json.dumps(request)
     
-def get_endpoint_params(model_name, role, image_uri, stage, training_requests, model_id):
-    model_location = {}
-    for model in training_requests:
-        request = json.loads(training_requests[model])
-        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+get_training_job_name(model, model_id)+"/output"
+def get_endpoint_params(model_name, role, image_uri, stage, model_id):
+#    model_location = {}
+#    for model in training_requests:
+#        request = json.loads(training_requests[model])
+#        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+get_training_job_name(model, model_id)+"/output"
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
             "ModelName": model_name,
-            "ModelsPrefix": stage,
             "MLOpsRoleArn": role,
-#            "ModelLocations": json.dumps(model_location),
             "Stage": stage,
             "ModelId": model_id
         }
@@ -241,7 +239,7 @@ def main(
 
     # Write the params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
-        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests, model_id)
+        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, model_id)
         json.dump(params, f)
 
 if __name__ == "__main__":
