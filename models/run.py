@@ -11,7 +11,10 @@ import sagemaker
 from sagemaker.workflow.airflow import training_config
 
 sagemaker_session = sagemaker.session.Session()
-bucket = sagemaker_session.default_bucket()
+
+
+def get_bucket_name(model_name, stage):
+    return model_name+"-training-"+stage
 
 def create_tar_file(source_files, filename):
     with tarfile.open(filename, mode="w:gz") as t:
@@ -31,9 +34,10 @@ def get_training_request(
     role,
     image_uri,
     training_uri,
+    training_bucket,
     hyperparameters,
 ):
-    model_uri = "s3://{0}/{1}/{2}".format(bucket, stage, model_name)
+    model_uri = "s3://{0}/{1}".format(training_bucket, model_name)
 
     # include location of tarfile and name of training script
     hyperparameters["sagemaker_program"] = "train.py"
@@ -60,18 +64,16 @@ def get_training_request(
     request = training_config(estimator, inputs=data, job_name=get_training_job_name(model_name, model_id))
     return json.dumps(request)
     
-def get_endpoint_params(model_name, role, image_uri, stage, training_requests, model_id):
-    model_location = {}
-    for model in training_requests:
-        request = json.loads(training_requests[model])
-        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+get_training_job_name(model, model_id)+"/output"
+def get_endpoint_params(model_name, role, image_uri, stage, model_id):
+#    model_location = {}
+#    for model in training_requests:
+#        request = json.loads(training_requests[model])
+#        model_location[model] = request["OutputDataConfig"]["S3OutputPath"]+"/"+get_training_job_name(model, model_id)+"/output"
     return {
         "Parameters": {
             "ImageRepoUri": image_uri,
             "ModelName": model_name,
-            "ModelsPrefix": stage,
             "MLOpsRoleArn": role,
-#            "ModelLocations": json.dumps(model_location),
             "Stage": stage,
             "ModelId": model_id
         }
@@ -112,7 +114,6 @@ def get_custom_resource_params(model_name, stage):
             "Stage": stage,
             "TrainingJobStackName": model_name+"-training-job-"+stage,
             "SMexperimentLambda": model_name+"-create-sm-experiment-"+stage,
-            "TrainingBucket": bucket
         }
     }
 
@@ -171,12 +172,13 @@ def main(
             training_uri = input_data["Training"]["Uri"]
             training_uri = training_uri.replace("STAGE", stage)
             training_file = input_data["Training"]["file_name"]
-            print("Train model {} with data {} in {}".format(model, training_uri, training_file))
+            print("Train model {} with data {} in {}".format(model, training_file, training_uri))
             # create tar file with training script
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
             # upload tar file to S3
-            sources = sagemaker_session.upload_data(tar_file, bucket, stage + '/' + model + '/code')
+            training_bucket = get_bucket_name(model_name, stage)
+            sources = sagemaker_session.upload_data(tar_file, training_bucket, model + '/code')
             print(sources)
             # delete tar file after uploading
             try:
@@ -199,10 +201,12 @@ def main(
                 role,
                 training_image_uri,
                 training_uri,
+                training_bucket,
                 hyperparameters,
             )
         # Upload params-file
-        params_location = sagemaker_session.upload_data(params_file, bucket, stage + '/' + model + '/params')
+        training_bucket = get_bucket_name(model_name, stage)
+        params_location = sagemaker_session.upload_data(params_file, training_bucket, model + '/params')
         print("Parameter-file uploaded to {}".format(params_location))
 
         # create Cloudformation template for training jobs
@@ -226,14 +230,14 @@ def main(
     with open(os.path.join(output_dir, "training-job.yml"), "w") as f:
         f.write(training_template)
 
-    # Write the dev & prod params for template-custom-resource.yml
+    # Write the params for template-custom-resource.yml
     with open(os.path.join(output_dir, "template-custom-resource.json"), "w") as f:
         params = get_custom_resource_params(model_name, stage)
         json.dump(params, f)
 
-    # Write the dev & prod params for CFN
+    # Write the params for CFN
     with open(os.path.join(output_dir, "deploy-endpoint.json"), "w") as f:
-        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, training_requests, model_id)
+        params = get_endpoint_params(model_name, role, endpoint_image_uri, stage, model_id)
         json.dump(params, f)
 
 if __name__ == "__main__":

@@ -14,7 +14,6 @@ Metadata:
           - GitHubBranch
           - GitHubUser
           - GitHubSecret
-          - TrainingBucket
     ParameterLabels:
       ModelName:
         default: detektivkollektiv-ml-models
@@ -26,8 +25,6 @@ Metadata:
         default: DetektivKollektiv
       GitHubSecret:
         default: GitHub/ML-models
-      TrainingBucket:
-        default: sagemaker-eu-central-1-891514678401
 Parameters:
   Stage:
     Default: dev
@@ -57,10 +54,6 @@ Parameters:
     Default: GitHub/ML-models
     Type: String
     Description: Name of secret in the secretsmanager
-  TrainingBucket:
-    Default: sagemaker-eu-central-1-891514678401
-    Type: String
-    Description: Bucket where new trained models are stored
 
 Resources:
   ArtifactBucket:
@@ -73,22 +66,20 @@ Resources:
   ModelBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
-      BucketName: !Sub '${ModelName}'
+      BucketName: !Sub '${ModelName}-${Stage}'
       AccessControl: Private
   NotificationBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref TrainingBucket
+      BucketName: !Sub '${ModelName}-training-${Stage}'
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: 's3:ObjectCreated:*'
             Filter:
               S3Key:
                 Rules:
-                  - Name: prefix
-                    Value: !Sub '${Stage}/'
                   - Name: suffix
-                    Value: .tar.gz
+                    Value: model.tar.gz
             Function: !GetAtt DeployNewModels.Arn
   BuildProject:
     Type: 'AWS::CodeBuild::Project'
@@ -117,8 +108,7 @@ Resources:
       Runtime: python3.8
       Environment:
         Variables:
-          BUCKET: !Ref ModelName
-          PREFIX: !Ref Stage
+          BUCKET: !Ref ModelBucket
       Timeout: 60
       Code:
         ZipFile: |
@@ -139,7 +129,7 @@ Resources:
               os.chdir('/tmp')
               file_name = "models-id.json"
               bucket = os.environ["BUCKET"]
-              key = os.environ["PREFIX"]+"/"+file_name
+              key = file_name
               if "Models" in event:
                   models = event["Models"]
                   trial_id = event["TrialID"]
@@ -292,6 +282,8 @@ Resources:
         Variables:
           MODEL_NAME:
             Ref: ModelName
+          MODEL_BUCKET:
+            Ref: ModelBucket
       Timeout: 60
       Code:
         ZipFile: |
@@ -316,15 +308,14 @@ Resources:
                   key = unquote_plus(record['s3']['object']['key'])
                   logger.info('bucket: {}'.format(bucket))
                   logger.info('key: {}'.format(key))
-                  stage, model, dummy, model_id, remaining = key.split('/',4)
-                  logger.info('stage: {}'.format(stage))
+                  model, dummy, model_id, remaining = key.split('/',3)
                   logger.info('model: {}'.format(model))
                   logger.info('model_id: {}'.format(model_id))
                   # download new model
                   download_path = '/tmp/'
                   s3_client.download_file(bucket, key, download_path+"model.tar.gz")
                   # download params-file
-                  s3_client.download_file(bucket, stage+'/'+model+'/params/'+model+'-params.json', download_path+model+'-params.json')
+                  s3_client.download_file(bucket, model+'/params/'+model+'-params.json', download_path+model+'-params.json')
                   # tar model and params for upload
                   with tarfile.open(download_path+"model.tar.gz") as tar:
                       tar.extractall(download_path)
@@ -333,7 +324,7 @@ Resources:
                       with tarfile.open(tar_name, "w:gz") as tar:
                           for name in [model+"-model", model+"-params.json"]: 
                               tar.add(name)
-                      destFileKey = 's3://' + os.environ["MODEL_NAME"] + '/' + stage + '/' + model_id + '.tar.gz'
+                      destFileKey = 's3://' + os.environ["MODEL_BUCKET"] + '/' + model_id + '.tar.gz'
                       destbucket, destkey = destFileKey.split('/',2)[-1].split('/',1)
                       s3_client.upload_file(tar_name, destbucket, destkey)
                   # update model id in Endpoint
@@ -355,7 +346,7 @@ Resources:
           eventName: ["PutObject", "CopyObject", "UploadPart", "UploadPartCopy"]
           requestParameters:
             bucketName: 
-              - !Sub ${TrainingBucket}
+              - !Sub '${ModelName}-training-${Stage}'
       Name: !Sub '${ModelName}-new-model-event-${Stage}'
       Targets: 
         - Arn: !GetAtt DeployNewModels.Arn
@@ -366,7 +357,7 @@ Resources:
       FunctionName: !Ref DeployNewModels
       Action: lambda:InvokeFunction
       Principal: s3.amazonaws.com
-      SourceArn: !Sub arn:aws:s3:::${TrainingBucket}
+      SourceArn: !Sub arn:aws:s3:::${ModelName}-training-${Stage}
   DeployPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
@@ -488,15 +479,14 @@ Resources:
               - 's3:ListBucket'
               - 's3:PutObject'
             Resource:
-              - !Sub 'arn:aws:s3:::${ModelBucket}/${Stage}/*'
-              - !Sub 'arn:aws:s3:::${ModelBucket}/${Stage}'
+              - !Sub 'arn:aws:s3:::${ModelBucket}/*'
               - !Sub 'arn:aws:s3:::${ModelBucket}'
               - !Sub 'arn:aws:s3:::factchecks-${Stage}'
               - !Sub 'arn:aws:s3:::factchecks-${Stage}/*'
               - !Sub 'arn:aws:s3:::${ArtifactBucket}/*'
               - !Sub 'arn:aws:s3:::${ArtifactBucket}'
-              - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}/*'
-              - !Sub 'arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}'
+              - !Sub 'arn:aws:s3:::${NotificationBucket}/*'
+              - !Sub 'arn:aws:s3:::${NotificationBucket}'
           - Sid: AllowLogs
             Effect: Allow
             Action:
@@ -651,8 +641,8 @@ Resources:
                 Action:
                   - s3:Get*
                 Resource:
-                  - !Sub arn:aws:s3:::${TrainingBucket}
-                  - !Sub arn:aws:s3:::${TrainingBucket}/*
+                  - !Sub arn:aws:s3:::${ModelName}-training-${Stage}
+                  - !Sub arn:aws:s3:::${ModelName}-training-${Stage}/*
   PipelineRole:
     Type: 'AWS::IAM::Role'
     Properties:

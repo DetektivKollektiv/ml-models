@@ -11,10 +11,6 @@ Parameters:
     Type: String
     Description: Name of the model
     Default: "detektivkollektiv-ml-models"
-  ModelsPrefix:
-    Type: String
-    Description: Prefix of models
-    Default: dev
   MLOpsRoleArn:
     Type: String
     Description: The role for executing the deployment
@@ -45,7 +41,7 @@ Resources:
       ModelName: !Sub ${ModelName}-${ModelId}
       PrimaryContainer:
         Image: !Ref ImageRepoUri
-        ModelDataUrl: !Sub s3://${ModelName}/${ModelsPrefix}/
+        ModelDataUrl: !Sub s3://${ModelName}-${Stage}/
         Mode: MultiModel
       ExecutionRoleArn: !Ref MLOpsRoleArn
 
@@ -84,8 +80,7 @@ Resources:
         Variables:
           ENDPOINT_NAME: !GetAtt Endpoint.EndpointName
           DEFAULT_ID: !Ref ModelId
-          BUCKET: !Ref ModelName
-          PREFIX: !Ref ModelsPrefix
+          BUCKET: !Sub ${ModelName}-${Stage}
       Events:
         ApiEvent:
           Type: Api
@@ -107,8 +102,7 @@ Resources:
       Environment:
         Variables:
           DEFAULT_ID: !Ref ModelId
-          BUCKET: !Ref ModelName
-          PREFIX: !Ref ModelsPrefix
+          BUCKET: !Sub ${ModelName}-${Stage}
     Description: "updates IDs of models to be used via the SageMaker endpoint"
 
   ApiFunctionRole:
@@ -138,15 +132,15 @@ Resources:
                 Action:
                   - s3:Get*
                 Resource:
-                  - !Sub arn:aws:s3:::${ModelName}
-                  - !Sub arn:aws:s3:::${ModelName}/${ModelsPrefix}/*
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}/*
               - Sid: UpdateModelIds
                 Effect: Allow
                 Action:
                   - s3:Get*
                   - s3:PutObject
                 Resource:
-                  - !Sub arn:aws:s3:::${ModelName}
-                  - !Sub arn:aws:s3:::${ModelName}/${ModelsPrefix}/*
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}/*
             Version: "2012-10-17"
           PolicyName: !Sub ${ModelName}-InvokeSageMakerEndpoint-${Stage}
