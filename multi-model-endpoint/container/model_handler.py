@@ -135,6 +135,7 @@ class ModelHandler(object):
             normalization = self.model_params['normalization'] # word normalization method, e.g. ‘stemming’
             window = self.model_params['window'] # edges connecting two words occurring in a window are weighted by co-occurrence counts, e.g. 10
             max_count = self.model_params['max_count'] # maximal count of highest scored keyphrases, which are returned
+            logging.info("TopicalPageRank model_input: {}".format(model_input))
             # 1. create a TopicalPageRank extractor.
             extractor = pke.unsupervised.TopicalPageRank()
             phrases_list = []
@@ -154,6 +155,7 @@ class ModelHandler(object):
                                             stoplist=stoplist)
                 # 5. get the highest scored candidates as keyphrases
                 keyphrases = extractor.get_n_best(n=max_count)
+                logging.info("text_input: {}. keyphrases: {}".format(text_input, keyphrases))
                 phrases_list.append(keyphrases)
             return phrases_list
         elif self.model_type == "DocSim":
@@ -161,7 +163,7 @@ class ModelHandler(object):
             with open(self.model, 'rb') as inp:
                 model = pickle.load(inp)
             inference = []
-            logging.info("model_input: {}".format(model_input))
+            logging.info("DocSim model_input: {}".format(model_input))
             for text_input in model_input:
                 logging.info("text_input: {}".format(text_input))
                 # read string into dataframe
