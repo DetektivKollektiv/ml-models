@@ -120,6 +120,13 @@ class ModelHandler(object):
         :param model_input: transformed model input data list
         :return: list of inference output in NDArray
         """
+        stoplist = list(string.punctuation)
+        language = self.model_params['language']
+        if language == "de":
+            language = "german"
+        stoplist += stopwords.words(language)
+        stoplist += ['archiviert', 'archiviertes', 'angeblich', 'angebliche', 'facebook', 'seien', 'sei', 'facebookpost', 'behauptung', 'sozialen', 'netzwerken', 'heißt', 'verbreitet', 'mögliche', 'höher', 'wort', 'teils', 'kaum', 'lassen', 'ersten', 'heraus', 'vergleich', 'simpsons', 'behauptet', 'etwa', 'worden', 'immer', 'post', 'sehen', 'kursiert', 'geteilt', 'hätten', 'sollen', 'zeigen', 'derzeit', 'seit', 'wurde', 'schon', 'mehr', 'zwei', 'gibt', 'dabei', 'steht', 'zeigt', 'sic', 'wegen', 'viele', 'netz', 'posting', 'video', 'gesagt', 'internet', 'artikel', 'nutzer', 'jahr', 'beitrag', 'macht', 'sharepic', 'gebe', 'zusammenhang', 'dafür', 'text', 'ab', 'jahren', 'kursieren', 'mann', 'frau', 'überschrift', 'laut', 'seite', 'de', 'zeige', 'wer', 'demnach', 'ende', 'prozent', 'wurden', 'mehrere', 'zudem', 'darin', 'suggeriert', 'zahlen', 'beleg', 'millionen', 'denen', 'beim', 'müssen', 'bereits', 'drei', 'darauf', 'online', 'jahre', 'geht', 'august', 'mehreren', 'beispiel', 'bekommen', 'welt', 'behauptungen', 'neue', 'land', 'stadt', 'oktober', 'erklärt', 'gefährlich', 'sogar', 'belegen', 'gar', 'heute', 'webseite', 'könne', 'schreibt', 'angebliches', 'mal', 'aktuell', 'angeblichen', 'behaupten', 'eindämmung', 'zufolge','jedoch', 'aussage', 'zugeschrieben', 'geld', 'eindruck', 'positiv', 'daten','zahl', 'berichtet', 'märz', 'davon', 'november', 'neben', 'bestätigt', 'leben', 'weniger', 'http', 'neuen', 'schutz', 'aktuellen', 'gab', 'halten', 'oft', 'vermeintliche', 'ganz', 'anfang', 'tag', 'aussagen', 'könnten', 'darunter', 'dezember', 'grund', 'erhalten', 'kommt', 'logo', 'unterstellt', 'erweckt', 'erst', 'wochen', 'gegeben', 'daher', 'zeit', 'gut', 'tage', 'sowie', 'rund', 'gestellt', 'screenshot', 'mitarbeiter', 'user', 'zweiten', 'april', 'geben', 'grafik', 'videos', 'fordert', 'häufig', 'außerdem','lautet', 'beiträgen', 'vermeintlichen', 'finden', 'gemacht', 'stellt', 'posts', 'personen', 'berichten', 'angegeben', 'verbreiten', 'arzt', 'präsident', 'bevölkerung', 'infektion', 'com', 'ländern', 'präsidenten', 'krise', 'bürger', 'rede', 'berichten', 'angegeben', 'verbreiten', 'fall', 'dpaq', 'runde', 'soziale', 'gebracht', 'worte', 'quelle', 'bringen', 'lesen', 'lange', 'tatsächlich', 'erneut', 'statt', 'september', 'weltweit', 'vielen', 'januar', 'nachdem', 'warnt', 'große', 'versucht', 'beweise', 'teilen', 'hingegen', 'juli', 'zusammen', 'luft', 'schreiben', 'wissen', 'per', 'monaten', 'beweis', 'anhand', 'dürfen', 'vermeintlich', 'twitter', 'blog', 'falsch', 'mitte', 'aufschrift', 'februar', 'trägt', 'kurz']
+
         # Do some inference call to engine here and return output
         if self.model_type == "TopicalPageRank":
             pos = {'NOUN', 'PROPN', 'ADJ'} # the valid Part-of-Speeches to occur in the graph, e.g. {'NOUN', 'PROPN', 'ADJ'}
@@ -128,6 +135,7 @@ class ModelHandler(object):
             normalization = self.model_params['normalization'] # word normalization method, e.g. ‘stemming’
             window = self.model_params['window'] # edges connecting two words occurring in a window are weighted by co-occurrence counts, e.g. 10
             max_count = self.model_params['max_count'] # maximal count of highest scored keyphrases, which are returned
+            logging.info("TopicalPageRank model_input: {}".format(model_input))
             # 1. create a TopicalPageRank extractor.
             extractor = pke.unsupervised.TopicalPageRank()
             phrases_list = []
@@ -143,19 +151,19 @@ class ModelHandler(object):
                 #    in a window are weighted by co-occurrence counts.
                 extractor.candidate_weighting(window=window,
                                             pos=pos,
-                                            lda_model=self.model)
+                                            lda_model=self.model,
+                                            stoplist=stoplist)
                 # 5. get the highest scored candidates as keyphrases
                 keyphrases = extractor.get_n_best(n=max_count)
+                logging.info("text_input: {}. keyphrases: {}".format(text_input, keyphrases))
                 phrases_list.append(keyphrases)
             return phrases_list
         elif self.model_type == "DocSim":
             # load model
             with open(self.model, 'rb') as inp:
                 model = pickle.load(inp)
-            stoplist = list(string.punctuation)
-            stoplist += stopwords.words(self.model_params['language'])
             inference = []
-            logging.info("model_input: {}".format(model_input))
+            logging.info("DocSim model_input: {}".format(model_input))
             for text_input in model_input:
                 logging.info("text_input: {}".format(text_input))
                 # read string into dataframe
@@ -175,7 +183,11 @@ class ModelHandler(object):
                     # Remove stop words
                     words2 = [w for w in tokens if not w in stoplist and w in model.wv.key_to_index]
                     logging.info("words2: {}".format(words2))
-                    similarities.append(str(model.wv.n_similarity(words1, words2)))
+                    if (len(words1) == 0) or (len(words2) == 0):
+                        similarities.append("0.00")
+                        logging.warning("Word list is empty!")
+                    else:
+                        similarities.append(str(model.wv.n_similarity(words1, words2)))
                     logging.info("similarities: {}".format(similarities))
                 inference.append(similarities)
                 logging.info("inference: {}".format(inference))
