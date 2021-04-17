@@ -1,0 +1,8 @@
+{
+    "model_name": "DocSim",
+    "language": "german", 
+    "vector_size": 40,
+    "min_count": 10,
+    "epochs": 100, 
+    "train_df": "factchecks_de.csv"
+}

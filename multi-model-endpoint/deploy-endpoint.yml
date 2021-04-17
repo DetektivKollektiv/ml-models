@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: "SAM template for the DetektivKollektiv ML model deployment" # Change for each template
+
+Parameters:
+  ImageRepoUri:
+    Type: String
+    Description: Uri of the docker (ECR) model image
+    Default: "891514678401.dkr.ecr.eu-central-1.amazonaws.com/detektivkollektiv-ml-models:dev"
+  ModelName:
+    Type: String
+    Description: Name of the model
+    Default: "detektivkollektiv-ml-models"
+  MLOpsRoleArn:
+    Type: String
+    Description: The role for executing the deployment
+    Default: "arn:aws:iam::891514678401:role/detektivkollektiv-ml-models-deploy-role-dev"
+  Stage:
+    Default: dev
+    Description: stage (corresponding to branch)
+    Type: String
+  ModelId:
+    Description: identifies default version of models
+    Type: String
+    Default: "2ebdc638-4413-45c5-a0a1-156a05c7c8d9"
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName:
+        Ref: Stage
+      Name: !Sub ${ModelName}-api-${Stage}
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+        InvokeRole: NONE
+        
+  Model:
+    Type: "AWS::SageMaker::Model"
+    Properties:
+      ModelName: !Sub ${ModelName}-${ModelId}
+      PrimaryContainer:
+        Image: !Ref ImageRepoUri
+        ModelDataUrl: !Sub s3://${ModelName}-${Stage}/
+        Mode: MultiModel
+      ExecutionRoleArn: !Ref MLOpsRoleArn
+
+  EndpointConfig:
+    Type: "AWS::SageMaker::EndpointConfig"
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.t2.medium
+          ModelName: !GetAtt Model.ModelName
+          VariantName: AllTraffic
+      EndpointConfigName: !Sub ${ModelName}-${ModelId}
+      Tags:
+        - Key: Name
+          Value: !Sub ${ModelName}-${Stage}
+
+  Endpoint:
+    Type: "AWS::SageMaker::Endpoint"
+    Properties:
+      EndpointName: !Sub ${ModelName}-${ModelId}
+      EndpointConfigName: !GetAtt EndpointConfig.EndpointConfigName
+      Tags:
+        - Key: Name
+          Value: !Sub ${ModelName}-${Stage}
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ModelName}-api-${Stage}
+      CodeUri: .
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Role: !GetAtt ApiFunctionRole.Arn
+      Environment:
+        Variables:
+          ENDPOINT_NAME: !GetAtt Endpoint.EndpointName
+          DEFAULT_ID: !Ref ModelId
+          BUCKET: !Sub ${ModelName}-${Stage}
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /models/{model_name}
+            Method: post
+            RestApiId:
+              Ref: Api
+    Description: "Api deployment that invokes SageMaker endpoint"
+
+  UpdateModelFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ModelName}-update-model-${Stage}
+      CodeUri: .
+      Handler: app.update_modelId
+      Runtime: python3.8
+      Role: !GetAtt ApiFunctionRole.Arn
+      Environment:
+        Variables:
+          DEFAULT_ID: !Ref ModelId
+          BUCKET: !Sub ${ModelName}-${Stage}
+    Description: "updates IDs of models to be used via the SageMaker endpoint"
+
+  ApiFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Sid: AllowSageMaker
+                Effect: Allow
+                Action:
+                  - sagemaker:InvokeEndpoint
+                Resource: !Sub "arn:aws:sagemaker:*:*:endpoint/${ModelName}-${ModelId}"
+              - Sid: GetModelIds
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                Resource:
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}/*
+              - Sid: UpdateModelIds
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}
+                  - !Sub arn:aws:s3:::${ModelName}-${Stage}/*
+            Version: "2012-10-17"
+          PolicyName: !Sub ${ModelName}-InvokeSageMakerEndpoint-${Stage}

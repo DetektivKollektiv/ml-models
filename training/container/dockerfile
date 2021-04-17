@@ -1,0 +1,50 @@
+FROM ubuntu:20.04
+
+LABEL maintainer="DetektivKollektiv"
+
+# Install some handful libraries like curl, wget, git, build-essential, zlib
+RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa -y && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        python3-dev \
+        curl \
+        wget \
+        git \
+        openssh-client \
+        openssh-server \
+        vim \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -O https://bootstrap.pypa.io/get-pip.py \
+    && python3 get-pip.py
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+RUN update-alternatives --install /usr/local/bin/pip pip /usr/local/bin/pip3 1
+
+WORKDIR /
+
+# Install MMS, and SageMaker Inference Toolkit to set up MMS
+RUN pip3 --no-cache-dir install \
+                                sagemaker-training \
+                                gensim \
+                                nltk \
+                                spacy \
+                                pandas \
+                                git+https://github.com/boudinfl/pke.git \
+                                requests \
+                                retrying
+
+# Download language specific stopwords
+RUN python3 -m nltk.downloader stopwords
+RUN python3 -m nltk.downloader universal_tagset
+RUN python3 -m spacy download de_core_news_sm
+
+# Setting some environment variables.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/lib" \
+    PYTHONIOENCODING=UTF-8 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
