@@ -11,7 +11,6 @@ Metadata:
           default: Optional GitHub Parameters
         Parameters:
           - GitHubRepo
-          - GitHubBranch
           - GitHubUser
           - GitHubSecret
     ParameterLabels:
@@ -19,8 +18,6 @@ Metadata:
         default: detektivkollektiv-ml-models
       GitHubRepo:
         default: ml-models
-      GitHubBranch:
-        default: develop
       GitHubUser:
         default: DetektivKollektiv
       GitHubSecret:
@@ -30,6 +27,7 @@ Parameters:
     Default: dev
     Description: stage (corresponding to branch)
     Type: String
+    AllowedValues: [prod, dev, qa]
   ModelName:
     Default: detektivkollektiv-ml-models
     Type: String
@@ -46,14 +44,15 @@ Parameters:
     Default: ml-models
     Type: String
     Description: Name of the GitHub repository
-  GitHubBranch:
-    Default: develop
-    Type: String
-    Description: Name of the branch the code is located
   GitHubSecret:
     Default: GitHub/ML-models
     Type: String
     Description: Name of secret in the secretsmanager
+
+Conditions:
+  ProdStage: !Equals [!Ref Stage, prod]
+  QaStage: !Equals [!Ref Stage, qa]
+  NotDevStage: !Or [Condition:  ProdStage, Condition: QaStage]
 
 Resources:
   ArtifactBucket:
@@ -381,8 +380,22 @@ Resources:
               Configuration:
                 Owner: !Ref GitHubUser
                 Repo: !Ref GitHubRepo
-                Branch: !Ref GitHubBranch
+                Branch: !If [ProdStage, master, !If [QaStage, qa, develop]] 
                 OAuthToken: !Sub '{{resolve:secretsmanager:${GitHubSecret}:SecretString:token}}'
+        - !If 
+          - NotDevStage
+          -
+            Name: ChangeSetApproval
+            Actions:
+              - Name: ApproveChanges
+                ActionTypeId:
+                  Category: Approval
+                  Owner: AWS
+                  Provider: Manual
+                  Version: '1'
+                Configuration:
+                  CustomData: !Sub 'Changes for the Stage ${Stage} are waiting for approval. Do you want to implement the changes?'
+          - !Ref "AWS::NoValue"
         - Name: Build
           Actions:
             - Name: BuildImage
