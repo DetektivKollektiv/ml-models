@@ -1,4 +1,6 @@
 # Amazon SageMaker Multi-Model Endpoint for searching factchecks
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDetektivKollektiv%2Fml-models.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FDetektivKollektiv%2Fml-models?ref=badge_shield)
+
 
 With Amazon SageMaker multi-model endpoints, customers can create an endpoint that seamlessly hosts up to thousands of models. These endpoints are well suited to use cases where any one of a large number of models, which can be served from a common inference container, needs to be invokable on-demand and where it is acceptable for infrequently invoked models to incur some additional latency. For applications which require consistently low inference latency, a traditional endpoint is still the best choice.
 
@@ -50,3 +52,6 @@ Example of TopicalPageRank-params.json:
     "max_count": "10",
     "train_df": "factchecks_de.csv"
 }
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDetektivKollektiv%2Fml-models.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FDetektivKollektiv%2Fml-models?ref=badge_large)
