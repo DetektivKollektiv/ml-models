@@ -12,7 +12,9 @@ from nltk.corpus import stopwords
 import string
 import gensim
 import pickle
+import boto3
 
+s3_client = boto3.client('s3')
 
 def text_preprocess(text):
     text = text.lower()
@@ -106,7 +108,7 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, taxono
     reportkey = os.path.join(reportkey, report_file_name)
 
     print("Uploading taxonomy report into bucket {} with key {}".format(destbucket, reportkey))
-    s3.upload_file(report_file_name, destbucket, reportkey)
+    s3_client.upload_file(report_file_name, destbucket, reportkey)
 
 if __name__ == "__main__":
 
