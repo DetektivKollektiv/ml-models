@@ -11,10 +11,15 @@ import pke
 import pandas as pd
 
 
-def train(model_name, n_topics, language, normalization, train_df, train_channel):
+def train(model_name, n_topics, n_datasets, language, normalization, train_df, train_channel):
 
     # split df in single news
-    data_news = pd.read_csv(os.path.join(train_channel, train_df))
+    data_news_all = pd.read_csv(os.path.join(train_channel, train_df))
+    if len(data_news_all) < n_datasets:
+        data_news = data_news_all
+    else:
+        data_news = data_news_all.sample(n_datasets)
+        data_news.reset_index(drop=True, inplace=True)
     print(data_news.head())
 
     for index, row in data_news.iterrows():
@@ -34,9 +39,10 @@ if __name__ == "__main__":
     # required hyperparameters and other parameters
     parser.add_argument('--model_name', type=str)
     parser.add_argument('--n_topics', type=int, default=100)
+    parser.add_argument('--n_datasets', type=int, default=5000)
     parser.add_argument('--language', type=str, default="de")
     parser.add_argument('--normalization', type=str, default="None")
-    parser.add_argument('--train_df', type=str, default="factchecks_de.csv")
+    parser.add_argument('--train_df', type=str, default="news_de.csv")
 
     # This is a way to pass additional arguments when running as a script
     # and use sagemaker-containers defaults to set their values when not specified.
@@ -49,5 +55,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    train(args.model_name, args.n_topics, args.language, args.normalization, args.train_df, args.train)
+    train(args.model_name, args.n_topics, args.n_datasets, args.language, args.normalization, args.train_df, args.train)
  

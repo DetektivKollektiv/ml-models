@@ -4,7 +4,8 @@
     "language": "de", 
     "normalization": "None",
     "n_topics": 40,
+    "n_datasets": 5000,
     "window": 10, 
     "max_count": 10,
-    "train_df": "factchecks_de.csv"
+    "train_df": "news_de.csv"
 }

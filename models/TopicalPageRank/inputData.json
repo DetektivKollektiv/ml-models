@@ -1,6 +1,5 @@
 {
     "Training": {
-        "Uri": "s3://factchecks-STAGE",
-        "file_name": "factchecks_de.csv"
+        "Uri": "s3://factchecks-STAGE/training"
     }
 }
