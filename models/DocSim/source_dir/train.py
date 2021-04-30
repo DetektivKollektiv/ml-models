@@ -66,7 +66,8 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, taxono
     os.chdir('/tmp')
     taxonomy_file_name = "taxonomy.json"
     destbucket, destkey = taxonomy_uri.split('/',2)[-1].split('/',1)
-    s3_client.download_file(taxonomy_file_name, destbucket, destkey)
+    logging.info("Downloading taxonomy from bucket {} with key {}".format(destbucket, destkey))
+    s3_client.download_file(destbucket, destkey, taxonomy_file_name)
     # read taxonomy
     with open(taxonomy_file_name, "r") as f:
         taxonomy_json = json.load(f)
