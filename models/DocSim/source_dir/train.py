@@ -13,10 +13,14 @@ import string
 import gensim
 import pickle
 import boto3
+import logging
 
 s3_client = boto3.client('s3')
 
 def text_preprocess(text):
+    if isinstance(text, str) == False:
+        logging.warning("Non-string text: {}".format(text))
+        text = str(text)
     text = text.lower()
     text = text.replace("5g", "fuenfg")
     text = text.replace("co2", "cozwei")
