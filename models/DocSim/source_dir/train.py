@@ -92,7 +92,7 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, taxono
             for term in taxonomy_json[category][tag]:
                 tokens = text_preprocess(term)
                 for token in tokens:
-                    if token in model.wv.vocab:
+                    if token in model.wv.key_to_index:
                         token_similarities = {}
                         tuple_list = model.wv.most_similar(token)
                         for similarity_tuple in tuple_list:
