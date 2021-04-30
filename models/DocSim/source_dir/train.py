@@ -77,9 +77,9 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, taxono
     # create list of terms already considered in taxonomy
     term_list = []
     for category in taxonomy_json:
+        if (category == "similarity-threshold") or (category == "excluded-terms"):
+            continue
         for tag in taxonomy_json[category]:
-            if (category == "similarity-threshold") or (category == "excluded-terms"):
-                continue
             for term in taxonomy_json[category][tag]:
                 if term not in term_list:
                     term_list.append(term)
