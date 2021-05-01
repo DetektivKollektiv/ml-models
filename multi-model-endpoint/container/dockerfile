@@ -38,7 +38,7 @@ RUN pip3 --no-cache-dir install \
 # Download language specific stopwords
 RUN python3 -m nltk.downloader stopwords
 RUN python3 -m nltk.downloader universal_tagset
-RUN python3 -m spacy download de
+RUN python3 -m spacy download de_core_news_sm
                                 
 # Copy entrypoint script to the image
 COPY dockerd-entrypoint.py /usr/local/bin/dockerd-entrypoint.py
