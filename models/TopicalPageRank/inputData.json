@@ -1,5 +1,5 @@
 {
     "Training": {
-        "Uri": "s3://factchecks-STAGE"
+        "Uri": "s3://factchecks-STAGE/training"
     }
 }
