@@ -59,8 +59,10 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, taxono
     model.build_vocab(documents_train)
     model.train(documents_train, total_examples=model.corpus_count, epochs=model.epochs)
     # save the model
-    with open(os.path.join(model_dir, model_name+'-model'), 'wb') as out:
-        pickle.dump(model, out)
+#    with open(os.path.join(model_dir, model_name+'-model'), 'wb') as out:
+#        pickle.dump(model, out)
+    # save only the word vectors
+    model.wv.save(os.path.join(model_dir, model_name+'-model'))
 
     # download taxonomy
     os.chdir('/tmp')
