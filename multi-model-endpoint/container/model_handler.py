@@ -4,6 +4,7 @@ ModelHandler defines a model handler for load and inference requests for factche
 import pke
 from nltk.corpus import stopwords
 import gensim
+from gensim.models import KeyedVectors
 import glob
 import json
 import logging
@@ -163,8 +164,10 @@ class ModelHandler(object):
             return phrases_list
         elif self.model_type == "DocSim":
             # load model
-            with open(self.model, 'rb') as inp:
-                model = pickle.load(inp)
+#            with open(self.model, 'rb') as inp:
+#                model = pickle.load(inp)
+            # load word vectors
+            model_wv = KeyedVectors.load(self.model)
             inference = []
             logging.info("DocSim model_input: {}".format(model_input))
             for text_input in model_input:
@@ -178,19 +181,19 @@ class ModelHandler(object):
                     logging.info("row.iloc[0]: {}".format(row.iloc[0]))
                     tokens = self.text_preprocess(row.iloc[0])
                     # Remove stop words
-                    words1 = [w for w in tokens if not w in stoplist and w in model.wv.key_to_index]
+                    words1 = [w for w in tokens if not w in stoplist and w in model_wv.key_to_index]
                     logging.info("words1: {}".format(words1))
                     # prepare first document
                     logging.info("row.iloc[1]: {}".format(row.iloc[1]))
                     tokens = gensim.utils.simple_preprocess(row.iloc[1])
                     # Remove stop words
-                    words2 = [w for w in tokens if not w in stoplist and w in model.wv.key_to_index]
+                    words2 = [w for w in tokens if not w in stoplist and w in model_wv.key_to_index]
                     logging.info("words2: {}".format(words2))
                     if (len(words1) == 0) or (len(words2) == 0):
                         similarities.append("0.00")
                         logging.warning("Word list is empty!")
                     else:
-                        similarities.append(str(model.wv.n_similarity(words1, words2)))
+                        similarities.append(str(model_wv.n_similarity(words1, words2)))
                     logging.info("similarities: {}".format(similarities))
                 inference.append(similarities)
                 logging.info("inference: {}".format(inference))
