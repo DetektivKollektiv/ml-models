@@ -4,6 +4,6 @@
     "vector_size": 400,
     "min_count": 100,
     "epochs": 10, 
-    "train_df": "news_de.csv",
+    "train_df": "factchecks_de.csv",
     "taxonomy_uri": "s3://factchecks-dev/tagging/category-tag-terms-de.json"
 }
