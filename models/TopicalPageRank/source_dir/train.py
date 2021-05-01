@@ -24,7 +24,7 @@ def train(model_name, n_topics, n_datasets, language, normalization, train_df, t
 
     for index, row in data_news.iterrows():
         file = open(train_channel+'/'+str(index)+".txt","w") 
-        file.write(row["title"]) 
+        file.write(row["claim_text"]) 
         file.close() 
 
     # location for storing the trained model.
