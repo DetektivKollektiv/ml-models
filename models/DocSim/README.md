@@ -20,13 +20,13 @@ This is an example of a taxonomy:
     "similarity-threshold": 0.5,
     "gesundheit": {
         "masken": ["masken", "maske", "ffp2"],
-        "sars-cov-2": ["corona", "pandemie", "covid", "coronavirus"],
+        "covid": ["corona", "pandemie", "covid", "coronavirus"],
     },
     "excluded-terms": ["biologen", "astronomen"]
 }
 
 If one of these words is found in an item content, than the corresponding tag is set.
-For example an item content "Corona ist schlimmer als Grippe" would get the tag "sars-cov-2".
+For example an item content "Corona ist schlimmer als Grippe" would get the tag "covid".
 If the similarity score for one of these words is above the threshold, than also the corresponding tag is set.
 For example an item content "In diesem Geschäft ist FFP2-Pflicht" would get the tag "masken".
 
@@ -80,11 +80,16 @@ On the other hand all similarity scores of the word "gesichtsmasken" are below t
     "similarity-threshold": 0.5,
     "gesundheit": {
         "masken": ["masken", "maske", "ffp2", "gesichtsmasken"],
-        "sars-cov-2": ["corona", "pandemie", "covid", "coronavirus"],
+        "covid": ["corona", "pandemie", "covid", "coronavirus"],
     },
     "excluded-terms": ["biologen", "astronomen", "schutzkleidung"]
 }
 
+### Tag report
+
+The file name for this report is tag_report.json and is stored in the bucket and path as the taxonomy.
+The report lists tags existing in the database but which are not considered by the taxonomy. These additional tags should be included in the taxonomy either as tag, or as tag term or as excluded term.
+Please do not use tags or terms which consists of combined words like "corona-maßnahme" or "bild.de" as the tagging mechanism will split them in separate words which could result in unexpected tagging behavior.
 
 ## Inference
 
