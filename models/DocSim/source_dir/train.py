@@ -108,7 +108,7 @@ def train(model_name, language, vector_size, min_count, epochs, train_df, taxono
                         tag_terms[token] = token_similarities
             report[tag] = tag_terms
     # write taxonomy
-    report_file_name = "taxonomy_report.json"
+    report_file_name = "taxonomy_report_{}.json".format(language)
     with open(report_file_name, "w") as f:
         json.dump(report, f, ensure_ascii=False, indent=4)
     reportkey = '/'.join(destkey.split('/')[0:-1])
