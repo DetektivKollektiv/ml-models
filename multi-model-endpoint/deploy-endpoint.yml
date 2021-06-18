@@ -74,6 +74,7 @@ Resources:
       FunctionName: !Sub ${ModelName}-api-${Stage}
       CodeUri: .
       Handler: app.lambda_handler
+      Timeout: 60
       Runtime: python3.8
       Role: !GetAtt ApiFunctionRole.Arn
       Environment:

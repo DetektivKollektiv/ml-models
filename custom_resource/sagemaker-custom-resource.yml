@@ -27,6 +27,7 @@ Resources:
       CodeUri: .
       Handler: sagemaker_training_job.lambda_handler
       Runtime: python3.8
+      Timeout: 60
       Role: !GetAtt SagemakerCustomResourceRole.Arn
       Description: "Creates a SageMaker Training Job for a given request"
 

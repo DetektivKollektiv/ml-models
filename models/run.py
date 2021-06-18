@@ -171,8 +171,7 @@ def main(
             input_data = json.load(f)
             training_uri = input_data["Training"]["Uri"]
             training_uri = training_uri.replace("STAGE", stage)
-            training_file = input_data["Training"]["file_name"]
-            print("Train model {} with data {} in {}".format(model, training_file, training_uri))
+            print("Train model {} with data in {}".format(model, training_uri))
             # create tar file with training script
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)
