@@ -5,5 +5,5 @@
     "min_count": 100,
     "epochs": 10, 
     "train_df": "news_de.csv",
-    "taxonomy_uri": "s3://factchecks-dev/tagging/category-tag-terms-de.json"
+    "taxonomy_uri": "s3://factchecks-STAGE/tagging/category-tag-terms-de.json"
 }
