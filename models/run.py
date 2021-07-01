@@ -23,9 +23,9 @@ def create_tar_file(source_files, filename):
             t.add(sf, arcname=os.path.basename(sf))
     return filename
     
-# JSON encode hyperparameters.
-def json_encode_hyperparameters(hyperparameters):
-    return {str(k): json.dumps(v) for (k, v) in hyperparameters.items()}
+# JSON encode hyperparameters and replace stage in hyperparameters.
+def json_encode_hyperparameters(hyperparameters, stage):
+    return {str(k): json.dumps(v).replace("STAGE", stage) for (k, v) in hyperparameters.items()}
 
 def get_training_request(
     model_name,
@@ -42,7 +42,7 @@ def get_training_request(
     # include location of tarfile and name of training script
     hyperparameters["sagemaker_program"] = "train.py"
     hyperparameters["sagemaker_submit_directory"] = model_uri+"/code/train.tar.gz"
-    params = json_encode_hyperparameters(hyperparameters)
+    params = json_encode_hyperparameters(hyperparameters, stage)
 
     # Create the estimator
     estimator = sagemaker.estimator.Estimator(
@@ -171,8 +171,7 @@ def main(
             input_data = json.load(f)
             training_uri = input_data["Training"]["Uri"]
             training_uri = training_uri.replace("STAGE", stage)
-            training_file = input_data["Training"]["file_name"]
-            print("Train model {} with data {} in {}".format(model, training_file, training_uri))
+            print("Train model {} with data in {}".format(model, training_uri))
             # create tar file with training script
             tar_file = os.path.join(model_dir, "train.tar.gz")
             create_tar_file([os.path.join(model_dir, "source_dir/train.py")], tar_file)

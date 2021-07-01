@@ -1,8 +1,9 @@
 {
     "model_name": "DocSim",
     "language": "german", 
-    "vector_size": 40,
-    "min_count": 10,
-    "epochs": 100, 
-    "train_df": "factchecks_de.csv"
+    "vector_size": 400,
+    "min_count": 100,
+    "epochs": 10, 
+    "train_df": "news_de.csv",
+    "taxonomy_uri": "s3://factchecks-STAGE/tagging/category-tag-terms-de.json"
 }
