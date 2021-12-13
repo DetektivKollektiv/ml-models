@@ -684,6 +684,11 @@ Resources:
                 Action:
                   - 'iam:PassRole'
                 Resource: !GetAtt MLOpsRole.Arn
+              - Sid: CodeStar
+                Effect: Allow
+                Action:
+                  - 'codestar-connections:UseConnection'
+                Resource: '*'
   MLOpsRole:
     Type: 'AWS::IAM::Role'
     Properties:
