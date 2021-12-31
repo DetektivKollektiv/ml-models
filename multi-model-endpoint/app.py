@@ -58,6 +58,7 @@ def lambda_handler(event, context):
         )
         # Return predictions as JSON dictionary instead of CSV text
         predictions = response["Body"].read().decode("utf-8")
+        logger.debug("Model %s", json.dumps(model))
         logger.debug("Predictions %s", json.dumps(predictions))
         return {
             "statusCode": 200,
