@@ -283,6 +283,8 @@ Resources:
             Ref: ModelName
           MODEL_BUCKET:
             Ref: ModelBucket
+          STAGE_NAME: 
+            Ref: Stage
       Timeout: 60
       Code:
         ZipFile: |
@@ -331,7 +333,7 @@ Resources:
                   event["model"] = model
                   event["id"] = model_id
                   response = lb.invoke(
-                      FunctionName = os.environ["MODEL_NAME"]+"-update-model-"+stage,
+                      FunctionName = os.environ["MODEL_NAME"]+"-update-model-"+os.environ["STAGE_NAME"],
                       Payload=json.dumps(event).encode()
                   )
       Description: Function that deploys trained models to the multi model bucket
@@ -490,7 +492,7 @@ Resources:
               - 's3:GetBucket*'
               - 's3:GetObject*'
               - 's3:ListBucket'
-              - 's3:PutObject'
+              - 's3:PutObject*'
             Resource:
               - !Sub 'arn:aws:s3:::${ModelBucket}/*'
               - !Sub 'arn:aws:s3:::${ModelBucket}'
@@ -695,6 +697,11 @@ Resources:
                 Action:
                   - 'iam:PassRole'
                 Resource: !GetAtt MLOpsRole.Arn
+              - Sid: CodeStar
+                Effect: Allow
+                Action:
+                  - 'codestar-connections:UseConnection'
+                Resource: '*'
   MLOpsRole:
     Type: 'AWS::IAM::Role'
     Properties:
